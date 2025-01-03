@@ -55,6 +55,11 @@ unsigned long lastBatteryUpdate = 0;  // Tiempo del último cálculo de batería
 int batteryLevel = 0;  // Almacenará el nivel de batería
 unsigned long lastLoRaSend = 0;  // Tiempo del último paquete LoRa enviado
 unsigned long timeBetweenPackets = 0;  // Tiempo entre el último y el actual envío de paquete
+
+char receivedData[50];
+int encoderType = 1;
+float beginReset = 0.0;
+float distanciaRecorrida = 0.0;
 //#########################################################
 
 void setup() {
@@ -71,6 +76,8 @@ void setup() {
     Serial.println("Starting LoRa failed!");
     while (1);
   }
+
+  LoRa.receive();
   //#########################################################
 
   //########################## OLED ###############################
@@ -103,8 +110,8 @@ void loop() {
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
     display.setCursor(0, 24);
-    display.print("ticks: ");
-    display.print(_LeftEncoderTicks);
+    display.print("distancia: ");
+    display.print(Distance());
 
     // Mostrar mensaje de batería baja si el nivel está bajo
     display.setCursor(0, 8);
@@ -133,26 +140,48 @@ void loop() {
   //#########################################################
 
   //########################## Enviar paquete LoRa ##########################
-  if (LoRa.beginPacket()) {
-    unsigned long startTime = millis();
+  if (currentMillis - lastLoRaSend >= 2000) {  // Enviar datos cada 2 segundos
+    if (LoRa.beginPacket()) {
+      unsigned long startTime = millis();
 
-    LoRa.print(_LeftEncoderTicks);
-    LoRa.print(",");
-    LoRa.print(batteryLevel);
-    LoRa.endPacket();
+      LoRa.print(_LeftEncoderTicks);
+      LoRa.print(",");
+      LoRa.print(batteryLevel);
+      LoRa.endPacket();
 
-    // Calcular el tiempo que tomó enviar el paquete
-    unsigned long timeTaken = millis() - startTime;
-    timeBetweenPackets = timeTaken;
+      // Calcular el tiempo que tomó enviar el paquete
+      unsigned long timeTaken = millis() - startTime;
+      timeBetweenPackets = timeTaken;
 
-    // Imprimir el tiempo de envío en el Serial Monitor
-    Serial.print("Tiempo de envio: ");
-    Serial.print(timeTaken);
-    Serial.println(" ms");
+      // Imprimir el tiempo de envío en el Serial Monitor
+      // Serial.print("Tiempo de envio: ");
+      // Serial.print(timeTaken);
+      // Serial.println(" ms");
 
-    lastLoRaSend = currentMillis;
+      lastLoRaSend = currentMillis;
+    }
   }
   //#########################################################
+
+  //################## Recibir paquete LoRa #################
+  int packetSize = LoRa.parsePacket();
+  if (packetSize) {
+    Serial.println("Paquete recibido desde el esclavo");
+
+    // Leer el paquete en el buffer
+    int i = 0;
+    while (LoRa.available() && i < sizeof(receivedData) - 1) {
+      receivedData[i++] = LoRa.read();
+    }
+    receivedData[i] = '\0';  // Finalizar cadena
+
+    // Convertir la cadena a un flotante (float)
+    beginReset = atof(receivedData);  // Convertir el valor recibido a float
+
+    // Imprimir el valor flotante recibido en el Serial Monitor
+    Serial.print("Valor recibido (beginReset): ");
+    Serial.println(beginReset);
+  }
 }
 
 int getBatteryLevel() {
@@ -180,7 +209,7 @@ bool isLoRaConnected() {
 }
 
 void HandleLeftMotorInterruptA() {
-  _LeftEncoderBSet = digitalRead(c_LeftEncoderPinB);   // read the input pin
+  _LeftEncoderBSet = digitalRead(c_LeftEncoderPinB);   // leer el pin de entrada
   #ifdef LeftEncoderIsReversed
     _LeftEncoderTicks += _LeftEncoderBSet ? -1 : +1;
   #else
@@ -188,4 +217,13 @@ void HandleLeftMotorInterruptA() {
   #endif
 }
 
+float Distance() {
+    if (encoderType == 1) { // guía de cable
+        distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0372 * 3.1416) / 1024) * 1 * 100.0) / 100.0;
+    }
+    else if (encoderType == 2) { // carrete
+        distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0225 * 3.1416) / 1024) * 1.0216 * 100.0) / 100.0;
+    }
+    return distanciaRecorrida;
+}
 

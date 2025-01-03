@@ -38,6 +38,13 @@ void setup() {
     Serial.println("Starting LoRa failed!");
     while (1);
   }
+
+  // Configuración de LoRa para ajustar el rendimiento
+  //LoRa.setSpreadingFactor(7);  // Comúnmente 7-12, prueba con 7 para mayor velocidad
+  //LoRa.setSignalBandwidth(125E3);  // Ancho de banda de 125 kHz
+  //LoRa.setCodingRate4(5);  // Tasa de codificación 4/5
+
+
   LoRa.receive();
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
@@ -49,13 +56,37 @@ void setup() {
 }
 
 void loop() {
+
+  unsigned long currentMillis = millis();  // Guardar el tiempo actual para el control de intervalos
+
+  //############# Envío de datos ######################
+
+  if (Serial.available() > 0) {
+    // Lee el número flotante ingresado por el usuario
+    float input = Serial.parseFloat();
+
+    // Verifica si se recibió un número válido
+    if (input || Serial.available() > 0) { // Acepta el 0.0 como válido
+      Serial.print("Número recibido en el esclavo: ");
+      Serial.println(input);  // Verificar en el Serial Monitor del esclavo
+
+      // Enviar el valor flotante por LoRa
+      LoRa.print(input);
+      LoRa.endPacket();
+      Serial.println("Dato enviado");
+    } else {
+      Serial.println("Entrada no válida, por favor ingrese un número.");
+      while (Serial.available() > 0) {
+        Serial.read();
+      }
+    }
+  }
+
+  //###################################################
+
+  //############# Recepción de datos ##################
   int packetSize = LoRa.parsePacket();
   if (packetSize) {
-    // Marca de tiempo actual
-    unsigned long currentMillis = millis();
-    unsigned long interval = currentMillis - previousMillis;
-    previousMillis = currentMillis;
-
     // Leer el paquete en el buffer
     int i = 0;
     while (LoRa.available() && i < sizeof(receivedData) - 1) {
@@ -74,9 +105,9 @@ void loop() {
       batteryLevel = atoi(++ptr);  // Convertir después de la coma
 
       // Actualizar OLED si ha pasado suficiente tiempo y hay cambios
-      if ((currentMillis - lastOledUpdate >= 1000) &&
+      if (currentMillis - lastOledUpdate >= 1000 &&  // Actualizar cada 1 segundo
           (batteryLevel != lastBatteryLevel || leftEncoderTicks != lastEncoderTicks)) {
-        lastOledUpdate = currentMillis;
+        lastOledUpdate = currentMillis;  // Actualizar tiempo de la última actualización
 
         display.clearDisplay();
         display.setCursor(0, 8);
@@ -100,10 +131,13 @@ void loop() {
         lastEncoderTicks = leftEncoderTicks;
       }
 
-      Serial.print(interval);
-      Serial.println(" ms");
-      lastPrintMillis = currentMillis;
-      
+      // Si es necesario imprimir el tiempo que pasó desde la última recepción
+      if (currentMillis - lastPrintMillis >= 1000) {
+        lastPrintMillis = currentMillis;
+        // Serial.print(interval); // Si quieres imprimir el tiempo
+        // Serial.println(" ms");
+      }
     }
   }
 }
+
