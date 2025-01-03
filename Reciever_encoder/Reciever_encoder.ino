@@ -75,14 +75,7 @@ void setup() {
       Serial.println(value1);
       Serial.print("Valor 2: ");
       Serial.println(value2);
-    // Enviar el valor flotante por LoRa
-    
-    LoRa.print(value1);
-    LoRa.print(",");
-    LoRa.print(value2);
-    LoRa.print(",");
-    LoRa.endPacket();
-    Serial.println("Dato enviado");
+
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println("SSD1306 allocation failed");

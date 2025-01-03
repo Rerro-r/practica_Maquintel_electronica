@@ -80,7 +80,41 @@ void setup() {
   }
 
   LoRa.receive();
+
   //#########################################################
+
+  //############# Petición y espera de datos de encoder ######
+
+  if (LoRa.beginPacket()) {
+    unsigned long startTime = millis();
+
+    LoRa.print(1);
+    LoRa.print(",");
+    LoRa.print("");
+    LoRa.endPacket();
+  }
+
+  int packetSize = LoRa.parsePacket();
+  if (packetSize) {
+    Serial.println("Paquete recibido desde el esclavo");
+
+    // Leer el paquete en el buffer
+    int i = 0;
+    while (LoRa.available() && i < sizeof(receivedData) - 1) {
+      receivedData[i++] = LoRa.read();
+    }
+    receivedData[i] = '\0';  // Finalizar cadena
+
+    // Convertir la cadena a un flotante (float)
+    if (receivedData != "NO"){
+      beginReset = atof(receivedData);
+      reset = true;
+          // Imprimir el valor flotante recibido en el Serial Monitor
+      Serial.print("Valor recibido (beginReset): ");
+      Serial.println(beginReset);
+    } 
+
+  //##########################################################
 
   //########################## OLED ###############################
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
