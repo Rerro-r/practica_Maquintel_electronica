@@ -60,6 +60,7 @@ char receivedData[50];
 int encoderType = 1;
 float beginReset = 0.0;
 float distanciaRecorrida = 0.0;
+bool reset = false;
 //#########################################################
 
 void setup() {
@@ -176,11 +177,14 @@ void loop() {
     receivedData[i] = '\0';  // Finalizar cadena
 
     // Convertir la cadena a un flotante (float)
-    beginReset = atof(receivedData);  // Convertir el valor recibido a float
+    if (receivedData != "NO"){
+      beginReset = atof(receivedData);
+      reset = true;
+          // Imprimir el valor flotante recibido en el Serial Monitor
+      Serial.print("Valor recibido (beginReset): ");
+      Serial.println(beginReset);
+    }  // Convertir el valor recibido a float
 
-    // Imprimir el valor flotante recibido en el Serial Monitor
-    Serial.print("Valor recibido (beginReset): ");
-    Serial.println(beginReset);
   }
 }
 
@@ -218,12 +222,18 @@ void HandleLeftMotorInterruptA() {
 }
 
 float Distance() {
-    if (encoderType == 1) { // guía de cable
-        distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0372 * 3.1416) / 1024) * 1 * 100.0) / 100.0;
+    if (reset == false){
+      if (encoderType == 1) { // guía de cable
+          distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0372 * 3.1416) / 1024) * 1 * 100.0) / 100.0;
+      }
+      else if (encoderType == 2) { // carrete
+          distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0225 * 3.1416) / 1024) * 1.0216 * 100.0) / 100.0;
+      }
+    } else {
+      distanciaRecorrida = beginReset;
+      reset = false;
     }
-    else if (encoderType == 2) { // carrete
-        distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0225 * 3.1416) / 1024) * 1.0216 * 100.0) / 100.0;
-    }
+    
     return distanciaRecorrida;
 }
 
