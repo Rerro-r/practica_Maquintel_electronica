@@ -47,6 +47,43 @@ void setup() {
 
   LoRa.receive();
 
+  if (Serial.available() > 0) {
+      // Lee la entrada hasta un salto de línea
+      inputString = Serial.readStringUntil("\n");
+
+      // Encuentra la posición de la coma
+      int commaIndex = inputString.indexOf(",");
+
+      if (commaIndex != -1) { // Verifica si se encontró la coma
+        // Divide la cadena en dos partes usando el índice de la coma
+        String value1Str = inputString.substring(0, commaIndex);
+        String value2Str = inputString.substring(commaIndex + 1);
+
+        // Convierte las partes en números flotantes
+        value1 = value1Str.toFloat();
+        value2 = value2Str.toFloat();
+
+        // Muestra los valores en el monitor serial
+       // Serial.print("Valor 1: ");
+        //Serial.println(value1);
+        //Serial.print("Valor 2: ");
+        //Serial.println(value2);
+
+  // Verifica si se recibió un número válido
+  if (value1 || value2 || Serial.available() > 0) { // Acepta el 0.0 como válido
+      Serial.print("Valor 1: ");
+      Serial.println(value1);
+      Serial.print("Valor 2: ");
+      Serial.println(value2);
+    // Enviar el valor flotante por LoRa
+    
+    LoRa.print(value1);
+    LoRa.print(",");
+    LoRa.print(value2);
+    LoRa.print(",");
+    LoRa.endPacket();
+    Serial.println("Dato enviado");
+
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println("SSD1306 allocation failed");
     for (;;);
@@ -71,7 +108,10 @@ void loop() {
       Serial.println(input);  // Verificar en el Serial Monitor del esclavo
 
       // Enviar el valor flotante por LoRa
+      
       LoRa.print(input);
+      LoRa.print(",");
+      LoRa.print("LOOP");
       LoRa.endPacket();
       Serial.println("Dato enviado");
     } else {

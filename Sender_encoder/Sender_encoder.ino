@@ -217,10 +217,8 @@ void HandleLeftMotorInterruptA() {
   _LeftEncoderBSet = digitalRead(c_LeftEncoderPinB);   // leer el pin de entrada
   #ifdef LeftEncoderIsReversed
     _LeftEncoderTicks += _LeftEncoderBSet ? -1 : +1;
-    ticksNecesarios += _LeftEncoderBSet ? -1 : +1;
   #else
     _LeftEncoderTicks -= _LeftEncoderBSet ? -1 : +1;
-    ticksNecesarios += _LeftEncoderBSet ? -1 : +1;
   #endif
 }
 
@@ -229,15 +227,15 @@ void HandleLeftMotorInterruptA() {
 float Distance() {
     if (reset == false){
       if (encoderType == 1) { // guía de cable
-          distanciaRecorrida = round(((int(ticksNecesarios) * 0.0372 * 3.1416) / 1024) * 1 * 100.0) / 100.0;
+          distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0372 * 3.1416) / 1024) * 1 * 100.0) / 100.0;
       }
       else if (encoderType == 2) { // carrete
-          distanciaRecorrida = round(((int(ticksNecesarios) * 0.0225 * 3.1416) / 1024) * 1.0216 * 100.0) / 100.0;
+          distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0225 * 3.1416) / 1024) * 1.0216 * 100.0) / 100.0;
       }
     } else {
       distanciaRecorrida = beginReset;
       reset = false;
-      ticksNecesarios = round((distanciaRecorrida * 1024) / (0.0372 * 3.1416));
+      _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (0.0372 * 3.1416));
     }
     
     return distanciaRecorrida;
