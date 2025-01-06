@@ -62,6 +62,7 @@ float beginReset = 0.0;
 float distanciaRecorrida = 0.0;
 bool reset = false;
 int ticksNecesarios = 0;
+float encoderDiameter = 0.0; // medido en metros
 //#########################################################
 
 void setup() {
@@ -90,14 +91,12 @@ void setup() {
 
     LoRa.print(1);
     LoRa.print(",");
-    LoRa.print("");
+    LoRa.print("tipo de encoder/diámetro de encoder");
     LoRa.endPacket();
   }
 
-  int packetSize = LoRa.parsePacket();
+int packetSize = LoRa.parsePacket();
   if (packetSize) {
-    Serial.println("Paquete recibido desde el esclavo");
-
     // Leer el paquete en el buffer
     int i = 0;
     while (LoRa.available() && i < sizeof(receivedData) - 1) {
@@ -105,14 +104,13 @@ void setup() {
     }
     receivedData[i] = '\0';  // Finalizar cadena
 
-    // Convertir la cadena a un flotante (float)
-    if (receivedData != "NO"){
-      beginReset = atof(receivedData);
-      reset = true;
-          // Imprimir el valor flotante recibido en el Serial Monitor
-      Serial.print("Valor recibido (beginReset): ");
-      Serial.println(beginReset);
-    } 
+    char* ptr = receivedData;
+    encoderType = atoi(ptr);
+    ptr = strchr(ptr, ',');  // Buscar delimitador
+    if (ptr) {
+      encoderDiameter = atof(++ptr);  // Convertir después de la coma
+    }
+  }
 
   //##########################################################
 
@@ -212,13 +210,12 @@ void loop() {
     receivedData[i] = '\0';  // Finalizar cadena
 
     // Convertir la cadena a un flotante (float)
-    if (receivedData != "NO"){
-      beginReset = atof(receivedData);
-      reset = true;
-          // Imprimir el valor flotante recibido en el Serial Monitor
-      Serial.print("Valor recibido (beginReset): ");
-      Serial.println(beginReset);
-    }  // Convertir el valor recibido a float
+    beginReset = atof(receivedData);
+    reset = true;
+        // Imprimir el valor flotante recibido en el Serial Monitor
+    Serial.print("Valor recibido (beginReset): ");
+    Serial.println(beginReset);
+    // Convertir el valor recibido a float
 
   }
 }
@@ -266,10 +263,21 @@ float Distance() {
       else if (encoderType == 2) { // carrete
           distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0225 * 3.1416) / 1024) * 1.0216 * 100.0) / 100.0;
       }
+      else if (encoderType == 3) { // personalizado
+          distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0225 * 3.1416) / 1024) * 1.0216 * 100.0) / 100.0;
+      }
     } else {
       distanciaRecorrida = beginReset;
       reset = false;
-      _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (0.0372 * 3.1416));
+      if (encoderType == 1){
+        _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (0.0372 * 3.1416));
+      }
+      else if (encoderType == 2) {
+        _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (0.0225 * 3.1416));
+      }
+      else if (encoderType == 3){
+      _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (encoderDiameter * 3.1416));
+      }
     }
     
     return distanciaRecorrida;
