@@ -6,9 +6,9 @@ import time
 import tkinter as tk
 from tkinter import ttk
 
-
 Estado = 0
 Estado_reset = 0
+envio_encoder = True # debe ser True cada vez que se desconecta de forma manual o accidental el receptor
 
 current_file_path = os.path.abspath(__file__)
 
@@ -17,7 +17,6 @@ current_folder = os.path.dirname(current_file_path)
 
 # Construir la ruta hacia "Logos_Maquintel/Logos_Maquintel.png"
 logo_path = os.path.join(current_folder, "Logos_Maquintel", "Logos_Maquintel.png")
-
 
 def puertos_seriales():
     ports = [f"COM{i + 1}" for i in range(24)]
@@ -30,10 +29,10 @@ def puertos_seriales():
             pass
     return encontrados
 
-
 def desconectar():
     global Estado
     Estado = 0
+    envio_encoder = True
     port_lista.config(state="normal")
     port_lista2.config(state="normal")
     odometro_lista.config(state="normal")
@@ -43,14 +42,14 @@ def desconectar():
     b_conectar.config(state="normal")
     b_reset.config(state="normal")
     b_desconectar.config(state="disabled")
-
+    mensaje_error.config(text="")
+    check.config(state="normal")
 
 def reset():
     global Estado
     global Estado_reset
     if Estado == 1:
         Estado_reset = 1
-
 
 def conexion():
     # Obtiene la hora actual y la utiliza para nombrar el archivo CSV
@@ -60,6 +59,19 @@ def conexion():
     # Inicializa las variables globales
     global port_lista, Estado, Estado_reset, selec_imu
     Estado = 1
+
+    # Verificar si falta alguno de los parámetros necesarios
+    if not port_lista.get() or not odometro_lista.get():
+        mensaje_error.config(text="Falta seleccionar el puerto o el tipo de odómetro.")
+        Estado = 0
+        return
+    if odometro_lista.get() == "Personalizado" and not input2_.get():
+        mensaje_error.config(text="Falta seleccionar el radio especial para odómetro personalizado.")
+        Estado = 0
+        return
+
+    # Si todo está configurado correctamente, continuar con la conexión
+    mensaje_error.config(text="")
 
     # Crea el archivo CSV
     with open(nombre_archivo, "w", newline="") as file:
@@ -82,8 +94,8 @@ def conexion():
         # Inicializa la conexión serial para la odometría
         puertoSerial_c = serial.Serial(port_lista.get(), 115200, timeout=0.2)
         print(f"Conexión establecida con puerto {port_lista.get()}")
-    #    print(puertoSerial_c)
 
+        # Deshabilitar configuraciones una vez que la conexión se establezca
         port_lista.config(state="disabled")
         port_lista2.config(state="disabled")
         odometro_lista.config(state="disabled")
@@ -93,8 +105,27 @@ def conexion():
         b_conectar.config(state="disabled")
         b_reset.config(state="normal")
         b_desconectar.config(state="normal")
+        check.config(state="disabled")
 
+        # Deshabilitar la opción de seleccionar IMU después de la conexión
+        selec_imu.set(0)  # Asegura que la IMU no se pueda modificar
+
+        if odometro_lista.get() == "Guia de cable":
+            encoder_type = 1
+            encoder_ratio = 0
+        elif odometro_lista.get() == "Carrete":
+            encoder_type = 2
+            encoder_ratio = 0
+        elif odometro_lista.get() == "Personalizado":
+            encoder_type = 3
+            encoder_ratio = 0
         
+        if envio_encoder == True:
+            mensaje = f"odometro:{encoder_type};radio:{encoder_ratio}"
+            puertoSerial.write(mensaje.encode('utf-8'))
+            #puertoSerial.close()
+            envio_encoder = False
+
     else:
         # Si falta algún parámetro para la conexión serial, cambia el estado a 0
         Estado = 0
@@ -147,21 +178,17 @@ def conexion():
 
         if puertoSerial_c.in_waiting > 0:  # Verifica si hay datos disponibles
             datos = puertoSerial_c.readline().decode('utf-8').strip()
-           # print(f"Datos recibidos: {datos}")  # Verifica qué datos están llegando
             if datos:
                 try:
                     partes = dict(item.split(":") for item in datos.split(","))
                     Ti = partes.get("ticks", "0")
                     Distancia = partes.get("dist", "0.00")
-                 #   print(f"Distancia procesada: {Distancia}")  # Imprime la distancia procesada
                 except ValueError:
                     Ti = "0"
                     Distancia = "0.00"
-       # else:
-        #    print("No hay datos disponibles en el puerto serial.")
-
+        
         dis.set(Distancia)
-
+        
         # Ajuste de formato de distancia
         if float(Distancia) >= 0:
             if len(str(Distancia)) == 4:
@@ -203,7 +230,7 @@ def conexion():
                 pass
 
         ventana.update()
-    
+
     if selec_imu == 1:
         puertoSerial.flushInput()
         puertoSerial.close()
@@ -211,11 +238,18 @@ def conexion():
     if port_lista.get() and odometro_lista.get():
         puertoSerial_c.flushInput()
         puertoSerial_c.close()
-        
+
+# Habilitar o deshabilitar el campo "Radio especial"
+def habilitar_radio(*args):
+    if odometro_lista.get() == "Personalizado":
+        input2_.config(state="normal")
+    else:
+        input2_.config(state="disabled")
+
 # Configuración de la interfaz gráfica
 ventana = tk.Tk()
 ventana.title("Odometria - Maquintel")
-ventana.geometry('600x200')
+ventana.geometry('600x250')
 ventana.configure(background='dark orange')
 
 logo = tk.PhotoImage(logo_path)
@@ -255,7 +289,7 @@ odometro_lista.place(x=250, y=105)
 etiqueta4 = tk.Label(ventana, text='Tipo odometro', bg='white', fg='black', width=13)
 etiqueta4.place(x=245, y=80)
 
-etiqueta5 = tk.Label(ventana, text='Radio especial', bg='white', fg='black', width=13)
+etiqueta5 = tk.Label(ventana, text='Radio especial (en metros)', bg='white', fg='black', width=20)
 etiqueta5.place(x=350, y=80)
 
 input2_ = tk.Entry(ventana, width=15)
@@ -264,5 +298,12 @@ input2_.place(x=350, y=105)
 selec_imu = tk.IntVar()
 check = tk.Checkbutton(ventana, variable=selec_imu, onvalue=1, offvalue=0, bg="dark orange", activebackground="dark orange", text='IMU')
 check.place(x=5, y=115)
+
+# Mensaje de error debajo de los botones
+mensaje_error = tk.Label(ventana, text="", bg="white", fg="red", font=("Helvetica", 10))
+mensaje_error.place(x=5, y=190)
+
+# Asociar el cambio en odometro_lista al habilitar/deshabilitar Radio especial
+odometro_lista.bind("<<ComboboxSelected>>", habilitar_radio)
 
 ventana.mainloop()
