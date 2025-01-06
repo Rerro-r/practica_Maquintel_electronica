@@ -57,7 +57,8 @@ unsigned long lastLoRaSend = 0;  // Tiempo del último paquete LoRa enviado
 unsigned long timeBetweenPackets = 0;  // Tiempo entre el último y el actual envío de paquete
 
 char receivedData[50];
-int encoderType = 1;
+char receivedDataSetup[256] = {0};
+int encoderType = 0;
 float beginReset = 0.0;
 float distanciaRecorrida = 0.0;
 bool reset = false;
@@ -80,37 +81,58 @@ void setup() {
     while (1);
   }
 
-  LoRa.receive();
 
   //#########################################################
 
   //############# Petición y espera de datos de encoder ######
+// Esperar hasta que LoRa esté listo para transmitir
+  while (!LoRa.beginPacket()) {  // Bucle hasta que LoRa esté listo
+    Serial.println("Esperando a que LoRa esté listo para enviar...");
+    delay(100);  // Esperar 100ms antes de intentar nuevamente
+  }
+  delay(8000);
+  // Una vez LoRa esté listo, enviar el paquete
+  LoRa.beginPacket();
+  LoRa.print(1);             // Construir paquete
+  LoRa.print(",");
+  LoRa.print("tipo/diam");
+  LoRa.endPacket(); 
+  LoRa.read();
+  Serial.println("encoder pedido");
 
-  if (LoRa.beginPacket()) {
-    unsigned long startTime = millis();
+  LoRa.receive();
 
-    LoRa.print(1);
-    LoRa.print(",");
-    LoRa.print("tipo de encoder/diámetro de encoder");
-    LoRa.endPacket();
+  int packetSize = 0;
+  while (packetSize == 0) {
+    packetSize = LoRa.parsePacket();  // Espera hasta que se reciba un paquete
+    Serial.println("Esperando paquete...");
   }
 
-int packetSize = LoRa.parsePacket();
-  if (packetSize) {
-    // Leer el paquete en el buffer
-    int i = 0;
-    while (LoRa.available() && i < sizeof(receivedData) - 1) {
-      receivedData[i++] = LoRa.read();
-    }
-    receivedData[i] = '\0';  // Finalizar cadena
-
-    char* ptr = receivedData;
-    encoderType = atoi(ptr);
-    ptr = strchr(ptr, ',');  // Buscar delimitador
-    if (ptr) {
-      encoderDiameter = atof(++ptr);  // Convertir después de la coma
-    }
+  // Leer el paquete recibido en el buffer
+  int i = 0;
+  while (LoRa.available() && i < sizeof(receivedDataSetup) - 1) {
+    receivedDataSetup[i++] = LoRa.read();
   }
+  receivedDataSetup[i] = '\0';  // Finalizar la cadena de caracteres
+
+  // Mostrar los datos recibidos
+  Serial.println(receivedDataSetup);
+
+  // Procesar los datos recibidos
+  char* ptr = receivedDataSetup;
+  encoderType = atoi(ptr);  // Obtener el tipo de encoder (convertir la primera parte a entero)
+  ptr = strchr(ptr, ',');   // Buscar el delimitador '/'
+  if (ptr) {
+    ptr++;  // Avanzar el puntero después del '/'
+    encoderDiameter = atof(ptr);  // Convertir la parte después de '/' a flotante
+  }
+
+  receivedDataSetup[0] = '\0';  // Esto vacía la cadena
+  // Imprimir los valores procesados
+  Serial.println("Tipo de encoder recibido: " + String(encoderType));
+  Serial.println("Diámetro del encoder recibido: " + String(encoderDiameter));
+
+  
 
   //##########################################################
 
@@ -131,8 +153,13 @@ int packetSize = LoRa.parsePacket();
 
 void loop() {
   unsigned long currentMillis = millis();
+  //Serial.println("Tipo de encoder y diámetro: ");
+  //Serial.println(encoderType);
+  //Serial.println(encoderDiameter);
 
-  //########################## OLED ###############################
+//  Serial.println(receivedDataSetup);
+
+    //########################## OLED ###############################
   if (currentMillis - lastDisplayUpdate >= 1000) {  // Actualiza la pantalla cada 1 segundo
     lastDisplayUpdate = currentMillis;  // Actualiza el tiempo del último update de pantalla
 
@@ -178,6 +205,9 @@ void loop() {
     if (LoRa.beginPacket()) {
       unsigned long startTime = millis();
 
+      LoRa.beginPacket();
+      LoRa.print(2);
+      LoRa.print(",");
       LoRa.print(_LeftEncoderTicks);
       LoRa.print(",");
       LoRa.print(batteryLevel);

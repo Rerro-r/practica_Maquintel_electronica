@@ -26,6 +26,8 @@ unsigned long lastPrintMillis = 0;  // Control de impresión en Serial Monitor
 char receivedData[50];  // Buffer para datos del paquete
 int batteryLevel = 0;
 long leftEncoderTicks = 0;
+int indexQuestion = 0;
+float diameter = 0.033;
 
 void setup() {
   Serial.begin(115200);
@@ -46,35 +48,6 @@ void setup() {
 
 
   LoRa.receive();
-
-  if (Serial.available() > 0) {
-      // Lee la entrada hasta un salto de línea
-      inputString = Serial.readStringUntil("\n");
-
-      // Encuentra la posición de la coma
-      int commaIndex = inputString.indexOf(",");
-
-      if (commaIndex != -1) { // Verifica si se encontró la coma
-        // Divide la cadena en dos partes usando el índice de la coma
-        String value1Str = inputString.substring(0, commaIndex);
-        String value2Str = inputString.substring(commaIndex + 1);
-
-        // Convierte las partes en números flotantes
-        value1 = value1Str.toFloat();
-        value2 = value2Str.toFloat();
-
-        // Muestra los valores en el monitor serial
-       // Serial.print("Valor 1: ");
-        //Serial.println(value1);
-        //Serial.print("Valor 2: ");
-        //Serial.println(value2);
-
-  // Verifica si se recibió un número válido
-  if (value1 || value2 || Serial.available() > 0) { // Acepta el 0.0 como válido
-      Serial.print("Valor 1: ");
-      Serial.println(value1);
-      Serial.print("Valor 2: ");
-      Serial.println(value2);
 
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
@@ -101,14 +74,12 @@ void loop() {
       Serial.println(input);  // Verificar en el Serial Monitor del esclavo
 
       // Enviar el valor flotante por LoRa
-      
+      LoRa.beginPacket();
       LoRa.print(input);
-      LoRa.print(",");
-      LoRa.print("LOOP");
       LoRa.endPacket();
       Serial.println("Dato enviado");
     } else {
-      Serial.println("Entrada no válida, por favor ingrese un número.");
+      //Serial.println("Entrada no válida, por favor ingrese un número.");
       while (Serial.available() > 0) {
         Serial.read();
       }
@@ -132,10 +103,29 @@ void loop() {
     static long lastEncoderTicks = -1;
 
     char* ptr = receivedData;
-    leftEncoderTicks = atol(ptr);
-    ptr = strchr(ptr, ',');  // Buscar delimitador
-    if (ptr) {
-      batteryLevel = atoi(++ptr);  // Convertir después de la coma
+    indexQuestion = atoi(ptr);
+    //Serial.println("Tipo de pregunta: ");
+    //Serial.println(indexQuestion);
+
+    if (indexQuestion == 1){
+      LoRa.beginPacket();
+      LoRa.print(1);
+      LoRa.print(",");
+      LoRa.print(diameter);
+      LoRa.endPacket();
+      Serial.println("tipo de encoder enviado");
+
+    } else if (indexQuestion == 2) {
+      ptr = strchr(ptr, ',');  // Buscar delimitador
+      if (ptr) {
+        leftEncoderTicks = atol(++ptr);  // Convertir después de la coma
+      }
+      ptr = strchr(ptr, ',');  // Buscar delimitador
+      if (ptr) {
+        batteryLevel = atoi(++ptr);  // Convertir después de la coma
+      }
+      //Serial.println("datos recibidos desde el emisor");
+    }
 
       // Actualizar OLED si ha pasado suficiente tiempo y hay cambios
       if (currentMillis - lastOledUpdate >= 1000 &&  // Actualizar cada 1 segundo
@@ -148,9 +138,9 @@ void loop() {
         display.setTextColor(SSD1306_WHITE);
 
         if (batteryLevel < 20) {  // Mostrar advertencia de batería baja
-          display.println("BATTERY LOW!");
+          display.println("Batería baja!");
         } else {
-          display.print("Battery: ");
+          display.print("Batería: ");
           display.print(batteryLevel);
           display.println("%");
         }
@@ -172,5 +162,5 @@ void loop() {
       }
     }
   }
-}
+
 
