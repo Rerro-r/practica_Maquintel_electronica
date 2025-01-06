@@ -34,6 +34,15 @@ def puertos_seriales():
 def desconectar():
     global Estado
     Estado = 0
+    port_lista.config(state="normal")
+    port_lista2.config(state="normal")
+    odometro_lista.config(state="normal")
+    input_.config(state="normal")
+    input2_.config(state="normal")
+    selec_imu.set(0)
+    b_conectar.config(state="normal")
+    b_reset.config(state="normal")
+    b_desconectar.config(state="disabled")
 
 
 def reset():
@@ -74,6 +83,16 @@ def conexion():
         puertoSerial_c = serial.Serial(port_lista.get(), 115200, timeout=0.2)
         print(f"Conexión establecida con puerto {port_lista.get()}")
     #    print(puertoSerial_c)
+
+        port_lista.config(state="disabled")
+        port_lista2.config(state="disabled")
+        odometro_lista.config(state="disabled")
+        input_.config(state="disabled")
+        input2_.config(state="disabled")
+        selec_imu.set(0)
+        b_conectar.config(state="disabled")
+        b_reset.config(state="normal")
+        b_desconectar.config(state="normal")
 
         
     else:
