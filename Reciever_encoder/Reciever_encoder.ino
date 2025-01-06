@@ -26,6 +26,7 @@ unsigned long lastPrintMillis = 0;  // Control de impresión en Serial Monitor
 char receivedData[50];  // Buffer para datos del paquete
 int batteryLevel = 0;
 long leftEncoderTicks = 0;
+float distanciaRecorrida = 0.0;
 int indexQuestion = 0;
 float diameter = 0.033;
 
@@ -113,9 +114,9 @@ void loop() {
       LoRa.print(",");
       LoRa.print(diameter);
       LoRa.endPacket();
-      Serial.println("tipo de encoder enviado");
 
     } else if (indexQuestion == 2) {
+     // Serial.println(receivedData);
       ptr = strchr(ptr, ',');  // Buscar delimitador
       if (ptr) {
         leftEncoderTicks = atol(++ptr);  // Convertir después de la coma
@@ -123,6 +124,10 @@ void loop() {
       ptr = strchr(ptr, ',');  // Buscar delimitador
       if (ptr) {
         batteryLevel = atoi(++ptr);  // Convertir después de la coma
+      }
+      ptr = strchr(ptr, ',');  // Buscar delimitador
+      if (ptr) {
+        distanciaRecorrida = atof(++ptr);  // Convertir después de la coma
       }
       //Serial.println("datos recibidos desde el emisor");
     }
@@ -146,8 +151,8 @@ void loop() {
         }
 
         display.setCursor(0, 16);
-        display.print("Ticks: ");
-        display.println(leftEncoderTicks);
+        display.print("Dis: ");
+        display.println(distanciaRecorrida);
         display.display();
 
         lastBatteryLevel = batteryLevel;

@@ -64,6 +64,7 @@ float distanciaRecorrida = 0.0;
 bool reset = false;
 int ticksNecesarios = 0;
 float encoderDiameter = 0.0; // medido en metros
+float distancia = 0.0;
 //#########################################################
 
 void setup() {
@@ -90,23 +91,32 @@ void setup() {
     Serial.println("Esperando a que LoRa esté listo para enviar...");
     delay(100);  // Esperar 100ms antes de intentar nuevamente
   }
-  delay(8000);
+  delay(7000);
   // Una vez LoRa esté listo, enviar el paquete
+
+
+int packetSize = 0;
+
+// Enviar el paquete indefinidamente hasta recibir una respuesta
+while (packetSize == 0) {
   LoRa.beginPacket();
   LoRa.print(1);             // Construir paquete
   LoRa.print(",");
   LoRa.print("tipo/diam");
   LoRa.endPacket(); 
-  LoRa.read();
   Serial.println("encoder pedido");
-
   LoRa.receive();
+  // Esperar a que se reciba un paquete
+  delay(500);  // Retraso para evitar enviar paquetes demasiado rápido
 
-  int packetSize = 0;
-  while (packetSize == 0) {
-    packetSize = LoRa.parsePacket();  // Espera hasta que se reciba un paquete
+  packetSize = LoRa.parsePacket();  // Verificar si se ha recibido un paquete
+  if (packetSize == 0) {
     Serial.println("Esperando paquete...");
   }
+}
+
+Serial.println("Paquete recibido.");
+
 
   // Leer el paquete recibido en el buffer
   int i = 0;
@@ -131,7 +141,7 @@ void setup() {
   // Imprimir los valores procesados
   Serial.println("Tipo de encoder recibido: " + String(encoderType));
   Serial.println("Diámetro del encoder recibido: " + String(encoderDiameter));
-
+  LoRa.receive();
   
 
   //##########################################################
@@ -172,6 +182,7 @@ void loop() {
     display.setTextColor(SSD1306_WHITE);
     display.setCursor(0, 24);
     display.print("distancia: ");
+    distancia = Distance();
     display.print(Distance());
 
     // Mostrar mensaje de batería baja si el nivel está bajo
@@ -201,7 +212,7 @@ void loop() {
   //#########################################################
 
   //########################## Enviar paquete LoRa ##########################
-  if (currentMillis - lastLoRaSend >= 2000) {  // Enviar datos cada 2 segundos
+ 
     if (LoRa.beginPacket()) {
       unsigned long startTime = millis();
 
@@ -211,6 +222,8 @@ void loop() {
       LoRa.print(_LeftEncoderTicks);
       LoRa.print(",");
       LoRa.print(batteryLevel);
+      LoRa.print(",");
+      LoRa.print(distanciaRecorrida);
       LoRa.endPacket();
 
       // Calcular el tiempo que tomó enviar el paquete
@@ -224,7 +237,7 @@ void loop() {
 
       lastLoRaSend = currentMillis;
     }
-  }
+  
   //#########################################################
 
   //################## Recibir paquete LoRa #################
