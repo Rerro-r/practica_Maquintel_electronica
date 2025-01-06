@@ -55,7 +55,7 @@ def conexion():
     # Crea el archivo CSV
     with open(nombre_archivo, "w", newline="") as file:
         writer = csv.writer(file, delimiter=";", quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
-        writer.writerow(["Hora", "Distancia", "GIROSCOPIO", "ACELEROMETRO", "MAGNETROMETRO"])
+        writer.writerow(["Hora UNIX", "Distancia", "Ticks", "GIROSCOPIO", "ACELEROMETRO", "MAGNETROMETRO"])
 
     # Inicializa la conexión serial
     if port_lista.get() and odometro_lista.get():
@@ -71,7 +71,10 @@ def conexion():
             print("Conexión con software sonar establecida")
         
         # Inicializa la conexión serial para la odometría
-        puertoSerial_c = serial.Serial(port_lista.get(), 115200, timeout=2)
+        puertoSerial_c = serial.Serial(port_lista.get(), 115200, timeout=0.2)
+        print(f"Conexión establecida con puerto {port_lista.get()}")
+    #    print(puertoSerial_c)
+
         
     else:
         # Si falta algún parámetro para la conexión serial, cambia el estado a 0
@@ -123,19 +126,22 @@ def conexion():
                     giro = str(giroscopio[1]) + ";" + str(giroscopio[3]) + ";" + str(giroscopio[4]) + ";" + str(giroscopio[5])
                     mag = str(magnetometro[1]) + ";" + str(magnetometro[3]) + ";" + str(magnetometro[4]) + ";" + str(magnetometro[5]) 
 
-        if puertoSerial_c.in_waiting > 0:
-            Tics = puertoSerial_c.readline()
-            if len(Tics) > 0:
-                Ti = "".join(filter(lambda x: x.isdigit(), str(Tics)))
-                if odometro_lista.get() == "Guia de cable":
-                    Distancia = round((((int(Ti) * 0.0372 * 3.1416) / 1024) * 1), 2)
-                elif odometro_lista.get() == "Carrete":
-                    Distancia = round((((int(Ti) * 0.0225 * 3.1416) / 1024) * 1.0216), 2)
-                
-                string_DIstancia = str(Distancia).split(".")
-                if len(string_DIstancia[1]) < 2:
-                    string_DIstancia[1] = string_DIstancia[1] + "0"
-                Distancia = string_DIstancia[0] + "." + string_DIstancia[1]
+        if puertoSerial_c.in_waiting > 0:  # Verifica si hay datos disponibles
+            datos = puertoSerial_c.readline().decode('utf-8').strip()
+           # print(f"Datos recibidos: {datos}")  # Verifica qué datos están llegando
+            if datos:
+                try:
+                    partes = dict(item.split(":") for item in datos.split(","))
+                    Ti = partes.get("ticks", "0")
+                    Distancia = partes.get("dist", "0.00")
+                 #   print(f"Distancia procesada: {Distancia}")  # Imprime la distancia procesada
+                except ValueError:
+                    Ti = "0"
+                    Distancia = "0.00"
+       # else:
+        #    print("No hay datos disponibles en el puerto serial.")
+
+        dis.set(Distancia)
 
         # Ajuste de formato de distancia
         if float(Distancia) >= 0:
@@ -161,8 +167,8 @@ def conexion():
         # Guardar datos en archivo CSV
         with open(nombre_archivo, 'a', newline='') as archivo:
             escritor = csv.writer(archivo, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
-            hora_actual = datetime.datetime.now()
-            escritor.writerow([hora_actual.time(), Distancia, giro, ace, mag])
+            hora_actual_unix = int(datetime.datetime.now().timestamp())
+            escritor.writerow([hora_actual_unix, Distancia, Ti, giro, ace, mag])
         
         if selec_imu.get() == 1:
             puertoSerial_b.write(formato.encode('utf-8'))
@@ -190,7 +196,7 @@ def conexion():
 # Configuración de la interfaz gráfica
 ventana = tk.Tk()
 ventana.title("Odometria - Maquintel")
-ventana.geometry('350x200')
+ventana.geometry('600x200')
 ventana.configure(background='dark orange')
 
 logo = tk.PhotoImage(logo_path)
@@ -224,11 +230,17 @@ b_reset.place(x=155, y=155)
 input_ = tk.Entry(ventana, width=15)
 input_.place(x=225, y=159)
 
-odometro_lista = ttk.Combobox(ventana, width=10, state="readonly", values=['Guia de cable', 'Carrete'])
+odometro_lista = ttk.Combobox(ventana, width=10, state="readonly", values=['Guia de cable', 'Carrete', 'Personalizado'])
 odometro_lista.place(x=250, y=105)
 
 etiqueta4 = tk.Label(ventana, text='Tipo odometro', bg='white', fg='black', width=13)
 etiqueta4.place(x=245, y=80)
+
+etiqueta5 = tk.Label(ventana, text='Radio especial', bg='white', fg='black', width=13)
+etiqueta5.place(x=350, y=80)
+
+input2_ = tk.Entry(ventana, width=15)
+input2_.place(x=350, y=105)
 
 selec_imu = tk.IntVar()
 check = tk.Checkbutton(ventana, variable=selec_imu, onvalue=1, offvalue=0, bg="dark orange", activebackground="dark orange", text='IMU')

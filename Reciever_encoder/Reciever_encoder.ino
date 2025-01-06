@@ -106,7 +106,7 @@ void loop() {
     char* ptr = receivedData;
     indexQuestion = atoi(ptr);
     //Serial.println("Tipo de pregunta: ");
-    //Serial.println(indexQuestion);
+   // Serial.println(indexQuestion);
 
     if (indexQuestion == 1){
       LoRa.beginPacket();
@@ -129,7 +129,10 @@ void loop() {
       if (ptr) {
         distanciaRecorrida = atof(++ptr);  // Convertir después de la coma
       }
-      //Serial.println("datos recibidos desde el emisor");
+      Serial.print("ticks:");
+      Serial.print(leftEncoderTicks); // 2 decimales
+      Serial.print(",dist:");
+      Serial.println(distanciaRecorrida);
     }
 
       // Actualizar OLED si ha pasado suficiente tiempo y hay cambios
