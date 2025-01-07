@@ -28,7 +28,8 @@ int batteryLevel = 0;
 long leftEncoderTicks = 0;
 float distanciaRecorrida = 0.0;
 int indexQuestion = 0;
-float diameter = 0.033;
+float encoderRatio = 0.0;
+int encoderType = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -47,17 +48,77 @@ void setup() {
   //LoRa.setSignalBandwidth(125E3);  // Ancho de banda de 125 kHz
   //LoRa.setCodingRate4(5);  // Tasa de codificación 4/5
 
-
   LoRa.receive();
-
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println("SSD1306 allocation failed");
     for (;;);
   }
+  
   display.clearDisplay();
   display.display();
+
+  Serial.println("Esperando datos por Serial...");
+  String odometro_radio = ""; // Variable para almacenar el dato recibido
+
+ /* // Mostrar mensaje de espera
+  display.setCursor(0, 23);
+  display.print("esperando datos...");
+  display.display(); // Mostrar mensaje en pantalla
+  */
+
+  // Esperar hasta que llegue un dato por serial
+  while (odometro_radio.length() == 0) {
+      // Mostrar mensaje de espera
+    display.setCursor(0, 23);
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.print("esperando datos...");
+    display.display(); // Mostrar mensaje en pantalla
+    if (Serial.available() > 0) {
+      odometro_radio = Serial.readString(); // Leer el dato como cadena
+
+      display.clearDisplay(); // Limpiar pantalla solo cuando se reciben datos
+      display.setCursor(0, 16);
+      display.setTextSize(1);
+      display.setTextColor(SSD1306_WHITE);
+      display.print("serial recibido");
+      display.display(); // Mostrar en pantalla
+
+      delay(1000); // Pequeño retardo para evitar sobrecarga
+    }
+    delay(100); // Retardo corto para evitar sobrecargar el bucle
+  }
+
+  // Procesar los datos recibidos
+  int comaIndex = odometro_radio.indexOf(',');
+  if (comaIndex != -1) {
+    encoderType = odometro_radio.substring(0, comaIndex).toInt();
+    encoderRatio = odometro_radio.substring(comaIndex + 1).toFloat();
+  }
+
+  Serial.print("Tipo de encoder: ");
+  Serial.println(encoderType);
+  Serial.print("Radio de encoder: ");
+  Serial.println(encoderRatio);
+
+  // Mostrar los resultados en el display
+  display.clearDisplay();
+  display.setCursor(0, 8);
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.print("serial: ");
+  display.println(odometro_radio);
+  display.setCursor(0, 23);
+  display.print("en/rad: ");
+  display.print(encoderType);
+  display.print(",");
+  display.println(encoderRatio);
+
+  display.display();
+  delay(10000); // Mostrar los resultados durante 5 segundos
 }
+
 
 void loop() {
 
@@ -65,7 +126,7 @@ void loop() {
 
   //############# Envío de datos ######################
 
-  if (Serial.available() > 0) {
+  /*if (Serial.available() > 0) {
     // Lee el número flotante ingresado por el usuario
     float input = Serial.parseFloat();
 
@@ -86,7 +147,7 @@ void loop() {
       }
     }
   }
-
+*/
   //###################################################
 
   //############# Recepción de datos ##################
@@ -110,9 +171,9 @@ void loop() {
 
     if (indexQuestion == 1){
       LoRa.beginPacket();
-      LoRa.print(1);
+      LoRa.print(encoderType);
       LoRa.print(",");
-      LoRa.print(diameter);
+      LoRa.print(encoderRatio);
       LoRa.endPacket();
 
     } else if (indexQuestion == 2) {
@@ -156,6 +217,13 @@ void loop() {
         display.setCursor(0, 16);
         display.print("Dis: ");
         display.println(distanciaRecorrida);
+
+        display.setCursor(0, 23);
+        display.print("en/rad: ");
+        display.print(encoderType);
+        display.print(",");
+        display.println(encoderRatio);
+
         display.display();
 
         lastBatteryLevel = batteryLevel;

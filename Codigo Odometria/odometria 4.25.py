@@ -8,14 +8,10 @@ from tkinter import ttk
 
 Estado = 0
 Estado_reset = 0
-envio_encoder = True # debe ser True cada vez que se desconecta de forma manual o accidental el receptor
+envio_encoder = True  # Debe ser True cada vez que se desconecta de forma manual o accidental el receptor
 
 current_file_path = os.path.abspath(__file__)
-
-# Obtener la carpeta donde está el archivo de código
 current_folder = os.path.dirname(current_file_path)
-
-# Construir la ruta hacia "Logos_Maquintel/Logos_Maquintel.png"
 logo_path = os.path.join(current_folder, "Logos_Maquintel", "Logos_Maquintel.png")
 
 def puertos_seriales():
@@ -29,8 +25,16 @@ def puertos_seriales():
             pass
     return encontrados
 
+def actualizar_puertos():
+    """Actualiza la lista de puertos COM si no hay conexión establecida."""
+    if Estado == 0:
+        puertos_disponibles = puertos_seriales()
+        port_lista["values"] = puertos_disponibles
+        port_lista2["values"] = puertos_disponibles
+    ventana.after(1000, actualizar_puertos)  # Repite cada 1000 ms (1 segundo)
+
 def desconectar():
-    global Estado
+    global Estado, envio_encoder
     Estado = 0
     envio_encoder = True
     port_lista.config(state="normal")
@@ -46,21 +50,14 @@ def desconectar():
     check.config(state="normal")
 
 def reset():
-    global Estado
     global Estado_reset
     if Estado == 1:
         Estado_reset = 1
 
 def conexion():
-    # Obtiene la hora actual y la utiliza para nombrar el archivo CSV
-    hora_actual = datetime.datetime.now().strftime("%H.%M.%S.%f")
-    nombre_archivo = os.path.join(current_folder, "CSVs de prueba", f"{hora_actual}.csv")
-
-    # Inicializa las variables globales
-    global port_lista, Estado, Estado_reset, selec_imu
+    global Estado, envio_encoder, Estado_reset, port_lista, selec_imu
     Estado = 1
 
-    # Verificar si falta alguno de los parámetros necesarios
     if not port_lista.get() or not odometro_lista.get():
         mensaje_error.config(text="Falta seleccionar el puerto o el tipo de odómetro.")
         Estado = 0
@@ -70,45 +67,38 @@ def conexion():
         Estado = 0
         return
 
-    # Si todo está configurado correctamente, continuar con la conexión
     mensaje_error.config(text="")
 
-    # Crea el archivo CSV
+    hora_actual = datetime.datetime.now().strftime("%H.%M.%S.%f")
+    nombre_archivo = os.path.join(current_folder, "CSVs de prueba", f"{hora_actual}.csv")
+
     with open(nombre_archivo, "w", newline="") as file:
         writer = csv.writer(file, delimiter=";", quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
         writer.writerow(["Hora UNIX", "Distancia", "Ticks", "GIROSCOPIO", "ACELEROMETRO", "MAGNETROMETRO"])
 
-    # Inicializa la conexión serial
     if port_lista.get() and odometro_lista.get():
         if selec_imu.get():
-            # Inicializa la conexión serial para la IMU
             puertoSerial = serial.Serial(port_lista2.get(), 115200, timeout=2)
             puertoSerial.write("iniciar".encode())
             print("Conexión con IMU establecida")
-            
+
             # Inicializa la conexión serial para el software sonar
             puertoSerial_b = serial.Serial("COM29", 115200, timeout=2)
             puertoSerial_b.write("iniciar".encode())
             print("Conexión con software sonar establecida")
-        
-        # Inicializa la conexión serial para la odometría
+
         puertoSerial_c = serial.Serial(port_lista.get(), 115200, timeout=0.2)
         print(f"Conexión establecida con puerto {port_lista.get()}")
 
-        # Deshabilitar configuraciones una vez que la conexión se establezca
         port_lista.config(state="disabled")
         port_lista2.config(state="disabled")
         odometro_lista.config(state="disabled")
         input_.config(state="disabled")
         input2_.config(state="disabled")
-        selec_imu.set(0)
         b_conectar.config(state="disabled")
         b_reset.config(state="normal")
         b_desconectar.config(state="normal")
         check.config(state="disabled")
-
-        # Deshabilitar la opción de seleccionar IMU después de la conexión
-        selec_imu.set(0)  # Asegura que la IMU no se pueda modificar
 
         if odometro_lista.get() == "Guia de cable":
             encoder_type = 1
@@ -118,16 +108,16 @@ def conexion():
             encoder_ratio = 0
         elif odometro_lista.get() == "Personalizado":
             encoder_type = 3
-            encoder_ratio = 0
-        
-        if envio_encoder == True:
-            mensaje = f"odometro:{encoder_type};radio:{encoder_ratio}"
-            puertoSerial.write(mensaje.encode('utf-8'))
-            #puertoSerial.close()
-            envio_encoder = False
+            encoder_ratio = float(input2_.get())
 
+        if envio_encoder:
+            mensaje = f"{encoder_type},{encoder_ratio}"
+            print(mensaje)
+            puertoSerial_c.write(mensaje.encode('utf-8'))
+            envio_encoder = False
+    
     else:
-        # Si falta algún parámetro para la conexión serial, cambia el estado a 0
+
         Estado = 0
 
     Ti = ""
@@ -299,11 +289,12 @@ selec_imu = tk.IntVar()
 check = tk.Checkbutton(ventana, variable=selec_imu, onvalue=1, offvalue=0, bg="dark orange", activebackground="dark orange", text='IMU')
 check.place(x=5, y=115)
 
-# Mensaje de error debajo de los botones
 mensaje_error = tk.Label(ventana, text="", bg="white", fg="red", font=("Helvetica", 10))
 mensaje_error.place(x=5, y=190)
 
-# Asociar el cambio en odometro_lista al habilitar/deshabilitar Radio especial
 odometro_lista.bind("<<ComboboxSelected>>", habilitar_radio)
+
+# Iniciar actualización de puertos
+actualizar_puertos()
 
 ventana.mainloop()

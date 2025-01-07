@@ -63,7 +63,7 @@ float beginReset = 0.0;
 float distanciaRecorrida = 0.0;
 bool reset = false;
 int ticksNecesarios = 0;
-float encoderDiameter = 0.0; // medido en metros
+float encoderRatio = 0.0; // medido en metros
 float distancia = 0.0;
 //#########################################################
 
@@ -134,13 +134,13 @@ Serial.println("Paquete recibido.");
   ptr = strchr(ptr, ',');   // Buscar el delimitador '/'
   if (ptr) {
     ptr++;  // Avanzar el puntero después del '/'
-    encoderDiameter = atof(ptr);  // Convertir la parte después de '/' a flotante
+    encoderRatio = atof(ptr);  // Convertir la parte después de '/' a flotante
   }
 
   receivedDataSetup[0] = '\0';  // Esto vacía la cadena
   // Imprimir los valores procesados
   Serial.println("Tipo de encoder recibido: " + String(encoderType));
-  Serial.println("Diámetro del encoder recibido: " + String(encoderDiameter));
+  Serial.println("Diámetro del encoder recibido: " + String(encoderRatio));
   LoRa.receive();
   
 
@@ -319,7 +319,7 @@ float Distance() {
         _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (0.0225 * 3.1416));
       }
       else if (encoderType == 3){
-      _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (encoderDiameter * 3.1416));
+      _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (encoderRatio * 3.1416));
       }
     }
     
