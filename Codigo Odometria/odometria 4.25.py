@@ -190,16 +190,15 @@ def conexion():
                     mag = str(magnetometro[1]) + ";" + str(magnetometro[3]) + ";" + str(magnetometro[4]) + ";" + str(magnetometro[5]) 
 
         if puertoSerial_c.in_waiting > 0:  # Verifica si hay datos disponibles
-            #print(puertoSerial_c.readline())
-            datos = puertoSerial_c.readline().decode('utf-8').strip()
-            if datos:
-                try:
+            try:
+                datos = puertoSerial_c.readline().decode('utf-8').strip()
+                if datos:
                     partes = dict(item.split(":") for item in datos.split(","))
                     Ti = partes.get("ticks", "0")
                     Distancia = partes.get("dist", "0.00")
-                except ValueError:
-                    Ti = "0"
-                    Distancia = "0.00"
+            except UnicodeDecodeError:
+                print("Error de decodificación, ignorando los datos corruptos.")
+                continue 
         
         dis.set(Distancia)
         

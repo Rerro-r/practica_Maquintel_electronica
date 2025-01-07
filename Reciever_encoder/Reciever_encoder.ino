@@ -23,7 +23,7 @@ unsigned long previousMillis = 0;  // Tiempo entre paquetes
 unsigned long lastOledUpdate = 0;  // Control de actualización OLED
 unsigned long lastPrintMillis = 0;  // Control de impresión en Serial Monitor
 
-char receivedData[50];  // Buffer para datos del paquete
+char receivedData[256];  // Buffer para datos del paquete
 int batteryLevel = 0;
 long leftEncoderTicks = 0;
 float distanciaRecorrida = 0.0;
@@ -190,19 +190,34 @@ void handleSerialData() {
     // Enviar el dato recibido al LoRa
     LoRa.beginPacket();
     LoRa.print(beginReset);
-    LoRa.endPacket();
+    int result = LoRa.endPacket(); // Devuelve 0 o 1
 
-    // Mostrar el dato recibido en el display
+    // Determinar el mensaje del resultado
+    String envioStatus;
+    if (result == 1) {
+      envioStatus = "Exitoso";
+    } else {
+      envioStatus = "Error";
+    }
+
+    // Mostrar el dato enviado y el estado en el display
     display.clearDisplay();
-    display.setCursor(0, 8);
+    display.setCursor(0, 0);
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
-    display.println("Dato recibido:");
-    display.setCursor(0, 16);
-    display.print(beginReset);
+
+    display.print("Dato enviado:");
+    display.setCursor(0, 10);
+    display.println(beginReset);
+
+    display.setCursor(0, 20);
+    display.print("Estado envio:");
+    display.println(envioStatus);
+
     display.display();
   }
 }
+
 
 
 // Actualización del OLED

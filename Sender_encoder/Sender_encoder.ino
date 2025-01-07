@@ -56,7 +56,7 @@ int batteryLevel = 0;  // Almacenará el nivel de batería
 unsigned long lastLoRaSend = 0;  // Tiempo del último paquete LoRa enviado
 unsigned long timeBetweenPackets = 0;  // Tiempo entre el último y el actual envío de paquete
 
-char receivedData[50];
+char receivedData[256];
 char receivedDataSetup[256] = {0};
 int encoderType = 0;
 float beginReset = 0.0;
@@ -95,27 +95,27 @@ void setup() {
   // Una vez LoRa esté listo, enviar el paquete
 
 
-int packetSize = 0;
+  int packetSize = 0;
 
-// Enviar el paquete indefinidamente hasta recibir una respuesta
-while (packetSize == 0) {
-  LoRa.beginPacket();
-  LoRa.print(1);             // Construir paquete
-  LoRa.print(",");
-  LoRa.print("tipo/diam");
-  LoRa.endPacket(); 
-  Serial.println("encoder pedido");
-  LoRa.receive();
-  // Esperar a que se reciba un paquete
-  delay(500);  // Retraso para evitar enviar paquetes demasiado rápido
+  // Enviar el paquete indefinidamente hasta recibir una respuesta
+  while (packetSize == 0) {
+    LoRa.beginPacket();
+    LoRa.print(1);             // Construir paquete
+    LoRa.print(",");
+    LoRa.print("tipo/diam");
+    LoRa.endPacket(); 
+    Serial.println("encoder pedido");
+    LoRa.receive();
+    // Esperar a que se reciba un paquete
+    delay(500);  // Retraso para evitar enviar paquetes demasiado rápido
 
-  packetSize = LoRa.parsePacket();  // Verificar si se ha recibido un paquete
-  if (packetSize == 0) {
-    Serial.println("Esperando paquete...");
+    packetSize = LoRa.parsePacket();  // Verificar si se ha recibido un paquete
+    if (packetSize == 0) {
+      Serial.println("Esperando paquete...");
+    }
   }
-}
 
-Serial.println("Paquete recibido.");
+  Serial.println("Paquete recibido.");
 
 
   // Leer el paquete recibido en el buffer
@@ -141,7 +141,7 @@ Serial.println("Paquete recibido.");
   // Imprimir los valores procesados
   Serial.println("Tipo de encoder recibido: " + String(encoderType));
   Serial.println("Diámetro del encoder recibido: " + String(encoderRatio));
-  LoRa.receive();
+
   
 
   //##########################################################
@@ -159,11 +159,12 @@ Serial.println("Paquete recibido.");
   pinMode(c_LeftEncoderPinB, INPUT_PULLUP); // sets pin B as input with pull-up
   attachInterrupt(digitalPinToInterrupt(c_LeftEncoderPinA), HandleLeftMotorInterruptA, RISING);
   //#########################################################
+  LoRa.receive();
 }
 
 void loop() {
   unsigned long currentMillis = millis();
-
+  LoRa.receive();
   // Actualizar la pantalla OLED cada segundo
   if (shouldUpdateDisplay(currentMillis)) {
     updateOLED();
@@ -179,14 +180,20 @@ void loop() {
     sendLoRaPacket();
   }
 
-  // Recibir paquete LoRa
-  handleLoRaReceive();
+  if (LoRa.parsePacket()) {
+      Serial.println("Paquete LoRa detectado.");
+      handleLoRaReceive();
+  } else {
+      Serial.println("No se recibió ningún paquete.");
+  }
 }
+
 
 // Verifica si es momento de actualizar la pantalla
 bool shouldUpdateDisplay(unsigned long currentMillis) {
   return currentMillis - lastDisplayUpdate >= 1000;
 }
+
 
 // Actualiza la pantalla OLED
 void updateOLED() {
@@ -258,23 +265,20 @@ void sendLoRaPacket() {
 
 // Maneja la recepción de datos LoRa
 void handleLoRaReceive() {
-  int packetSize = LoRa.parsePacket();
-  if (packetSize) {
-    Serial.println("Paquete recibido desde el esclavo");
+  Serial.println("Paquete recibido desde el esclavo");
 
-    int i = 0;
-    while (LoRa.available() && i < sizeof(receivedData) - 1) {
-      receivedData[i++] = LoRa.read();
-    }
-    receivedData[i] = '\0';
-
-    // Convertir y procesar el valor recibido
-    beginReset = atof(receivedData);
-    reset = true;
-
-    Serial.print("Valor recibido (beginReset): ");
-    Serial.println(beginReset);
+  int i = 0;
+  while (LoRa.available() && i < sizeof(receivedData) - 1) {
+    receivedData[i++] = LoRa.read();
   }
+  receivedData[i] = '\0';  // Terminar la cadena
+
+  // Convertir y procesar el valor recibido
+  beginReset = atof(receivedData);
+  reset = true;
+
+  Serial.print("Valor recibido (beginReset): ");
+  Serial.println(beginReset);
 }
 
 
