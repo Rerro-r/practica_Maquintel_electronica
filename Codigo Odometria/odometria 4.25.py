@@ -8,7 +8,10 @@ from tkinter import ttk
 
 Estado = 0
 Estado_reset = 0
-envio_encoder = True  # Debe ser True cada vez que se desconecta de forma manual o accidental el receptor
+envio_encoder = False  # Debe ser True cada vez que se desconecta de forma manual o accidental el receptor
+begin_reset = None
+envio_encoder_listo = False
+global puertoSerial_c
 
 current_file_path = os.path.abspath(__file__)
 current_folder = os.path.dirname(current_file_path)
@@ -36,33 +39,43 @@ def actualizar_puertos():
 def desconectar():
     global Estado, envio_encoder
     Estado = 0
-    envio_encoder = True
     port_lista.config(state="normal")
     port_lista2.config(state="normal")
     odometro_lista.config(state="normal")
-    input_.config(state="normal")
-    input2_.config(state="normal")
+    input_reset.config(state="disabled")
+    input_ratio.config(state="normal")
     selec_imu.set(0)
     b_conectar.config(state="normal")
-    b_reset.config(state="normal")
+    b_reset.config(state="disabled")
     b_desconectar.config(state="disabled")
     mensaje_error.config(text="")
     check.config(state="normal")
 
 def reset():
-    global Estado_reset
+    global Estado_reset, begin_reset, puertoSerial_c
+    mensaje_error.config(text="")
     if Estado == 1:
-        Estado_reset = 1
+        try:
+            # Intentar convertir el valor ingresado a float
+            begin_reset = float(input_reset.get())  # Si es válido, se guarda en begin_reset
+            Estado_reset = 1  # Si la conversión es exitosa, se activa el reset
+            mensaje = f"{begin_reset}"
+            print(mensaje)
+            puertoSerial_c.write(mensaje.encode('utf-8'))
+        except ValueError:
+            # Si ocurre un error al intentar convertir a float, muestra un mensaje de error
+            mensaje_error.config(text="Error: El valor ingresado no es válido. Ingrese un número válido. Ejemplo: 0.05. Use punto para los decimales")
 
 def conexion():
-    global Estado, envio_encoder, Estado_reset, port_lista, selec_imu
+    global Estado, envio_encoder, Estado_reset, port_lista, selec_imu, puertoSerial_c, envio_encoder_listo
+    mensaje_error.config(text="")
     Estado = 1
 
     if not port_lista.get() or not odometro_lista.get():
         mensaje_error.config(text="Falta seleccionar el puerto o el tipo de odómetro.")
         Estado = 0
         return
-    if odometro_lista.get() == "Personalizado" and not input2_.get():
+    if odometro_lista.get() == "Personalizado" and not input_ratio.get():
         mensaje_error.config(text="Falta seleccionar el radio especial para odómetro personalizado.")
         Estado = 0
         return
@@ -93,8 +106,8 @@ def conexion():
         port_lista.config(state="disabled")
         port_lista2.config(state="disabled")
         odometro_lista.config(state="disabled")
-        input_.config(state="disabled")
-        input2_.config(state="disabled")
+        input_reset.config(state="normal")
+        input_ratio.config(state="disabled")
         b_conectar.config(state="disabled")
         b_reset.config(state="normal")
         b_desconectar.config(state="normal")
@@ -103,18 +116,28 @@ def conexion():
         if odometro_lista.get() == "Guia de cable":
             encoder_type = 1
             encoder_ratio = 0
+            envio_encoder = True
         elif odometro_lista.get() == "Carrete":
             encoder_type = 2
             encoder_ratio = 0
+            envio_encoder = True
         elif odometro_lista.get() == "Personalizado":
             encoder_type = 3
-            encoder_ratio = float(input2_.get())
+            try:
+                # Intentar convertir el valor ingresado a float
+                encoder_ratio = float(input_ratio.get())  # Si es válido, se guarda en begin_reset
+                envio_encoder = True
+            except ValueError:
+                # Si ocurre un error al intentar convertir a float, muestra un mensaje de error
+                mensaje_error.config(text="Error: El valor ingresado no es válido. Ingrese un número válido. Ejemplo: 0.05. Use punto para los decimales")
 
-        if envio_encoder:
+
+        if envio_encoder and not envio_encoder_listo: # solo envía encoder una vez. Si se quiere cambiar de encoder se debe cerrar la aplicación
             mensaje = f"{encoder_type},{encoder_ratio}"
-            print(mensaje)
+            #print(mensaje)
             puertoSerial_c.write(mensaje.encode('utf-8'))
             envio_encoder = False
+            envio_encoder_listo = True
     
     else:
 
@@ -167,6 +190,7 @@ def conexion():
                     mag = str(magnetometro[1]) + ";" + str(magnetometro[3]) + ";" + str(magnetometro[4]) + ";" + str(magnetometro[5]) 
 
         if puertoSerial_c.in_waiting > 0:  # Verifica si hay datos disponibles
+            #print(puertoSerial_c.readline())
             datos = puertoSerial_c.readline().decode('utf-8').strip()
             if datos:
                 try:
@@ -213,7 +237,7 @@ def conexion():
         # Verificar si se necesita resetear la distancia
         if Estado_reset == 1:
             try:
-                nueva_dis = "reset" + input_.get() + "@"
+                nueva_dis = "reset" + input_reset.get() + "@"
                 puertoSerial_c.write(nueva_dis.encode('utf-8'))
                 Estado_reset = 0
             except ValueError:
@@ -229,17 +253,21 @@ def conexion():
         puertoSerial_c.flushInput()
         puertoSerial_c.close()
 
+def limpiar_error(event):
+    mensaje_error.config(text="")  # Borra el mensaje de error cuando el usuario interactúa con un campo de entrada
+
+
 # Habilitar o deshabilitar el campo "Radio especial"
 def habilitar_radio(*args):
     if odometro_lista.get() == "Personalizado":
-        input2_.config(state="normal")
+        input_ratio.config(state="normal")
     else:
-        input2_.config(state="disabled")
+        input_ratio.config(state="disabled")
 
 # Configuración de la interfaz gráfica
 ventana = tk.Tk()
 ventana.title("Odometria - Maquintel")
-ventana.geometry('600x250')
+ventana.geometry('800x250')
 ventana.configure(background='dark orange')
 
 logo = tk.PhotoImage(logo_path)
@@ -267,11 +295,11 @@ b_desconectar.place(x=155, y=115)
 b_conectar = tk.Button(ventana, text='Conectar', command=conexion, width=9)
 b_conectar.place(x=155, y=78)
 
-b_reset = tk.Button(ventana, text='Reset a: ', command=reset)
+b_reset = tk.Button(ventana, text='Reset a (en metros): ', command=reset)
 b_reset.place(x=155, y=155)
 
-input_ = tk.Entry(ventana, width=15)
-input_.place(x=225, y=159)
+input_reset = tk.Entry(ventana, width=15)
+input_reset.place(x=285, y=159)
 
 odometro_lista = ttk.Combobox(ventana, width=10, state="readonly", values=['Guia de cable', 'Carrete', 'Personalizado'])
 odometro_lista.place(x=250, y=105)
@@ -282,8 +310,11 @@ etiqueta4.place(x=245, y=80)
 etiqueta5 = tk.Label(ventana, text='Radio especial (en metros)', bg='white', fg='black', width=20)
 etiqueta5.place(x=350, y=80)
 
-input2_ = tk.Entry(ventana, width=15)
-input2_.place(x=350, y=105)
+input_ratio = tk.Entry(ventana, width=15)
+input_ratio.place(x=350, y=105)
+
+input_reset.bind("<FocusIn>", limpiar_error)
+input_ratio.bind("<FocusIn>", limpiar_error)
 
 selec_imu = tk.IntVar()
 check = tk.Checkbutton(ventana, variable=selec_imu, onvalue=1, offvalue=0, bg="dark orange", activebackground="dark orange", text='IMU')
@@ -296,5 +327,5 @@ odometro_lista.bind("<<ComboboxSelected>>", habilitar_radio)
 
 # Iniciar actualización de puertos
 actualizar_puertos()
-
+desconectar()
 ventana.mainloop()

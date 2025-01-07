@@ -163,105 +163,120 @@ Serial.println("Paquete recibido.");
 
 void loop() {
   unsigned long currentMillis = millis();
-  //Serial.println("Tipo de encoder y diámetro: ");
-  //Serial.println(encoderType);
-  //Serial.println(encoderDiameter);
 
-//  Serial.println(receivedDataSetup);
-
-    //########################## OLED ###############################
-  if (currentMillis - lastDisplayUpdate >= 1000) {  // Actualiza la pantalla cada 1 segundo
-    lastDisplayUpdate = currentMillis;  // Actualiza el tiempo del último update de pantalla
-
-    // Mostrar datos en OLED
-    display.clearDisplay();
-    bool loraConnected = isLoRaConnected();  // Verifica si LoRa está conectado
-
-    // Mostrar Ticks
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0, 24);
-    display.print("distancia: ");
-    distancia = Distance();
-    display.print(Distance());
-
-    // Mostrar mensaje de batería baja si el nivel está bajo
-    display.setCursor(0, 8);
-    if (batteryLevel == -1) {
-      display.print("Bateria baja!");
-    } else {
-      display.print("Bateria: ");
-      display.print(batteryLevel);
-    }
-
-    // Mostrar estado de LoRa
-    display.setCursor(0, 16);
-    display.print("LoRa: ");
-    display.println(loraConnected ? "transmitiendo" : "...");
-
-    display.display();
+  // Actualizar la pantalla OLED cada segundo
+  if (shouldUpdateDisplay(currentMillis)) {
+    updateOLED();
   }
-  //#########################################################
 
-  //########################## Calcular nivel de batería ########################
-  if (currentMillis - lastBatteryUpdate >= 5000) {  // Actualiza el nivel de batería cada 5 segundos
-    lastBatteryUpdate = currentMillis;
-
-    batteryLevel = getBatteryLevel();  // Calcula el nivel de batería
+  // Actualizar el nivel de batería cada 5 segundos
+  if (shouldUpdateBattery(currentMillis)) {
+    updateBatteryLevel();
   }
-  //#########################################################
 
-  //########################## Enviar paquete LoRa ##########################
- 
-    if (LoRa.beginPacket()) {
-      unsigned long startTime = millis();
+  // Enviar datos por LoRa
+  if (canSendLoRaPacket()) {
+    sendLoRaPacket();
+  }
 
-      LoRa.beginPacket();
-      LoRa.print(2);
-      LoRa.print(",");
-      LoRa.print(_LeftEncoderTicks);
-      LoRa.print(",");
-      LoRa.print(batteryLevel);
-      LoRa.print(",");
-      LoRa.print(distanciaRecorrida);
-      LoRa.endPacket();
+  // Recibir paquete LoRa
+  handleLoRaReceive();
+}
 
-      // Calcular el tiempo que tomó enviar el paquete
-      unsigned long timeTaken = millis() - startTime;
-      timeBetweenPackets = timeTaken;
+// Verifica si es momento de actualizar la pantalla
+bool shouldUpdateDisplay(unsigned long currentMillis) {
+  return currentMillis - lastDisplayUpdate >= 1000;
+}
 
-      // Imprimir el tiempo de envío en el Serial Monitor
-      // Serial.print("Tiempo de envio: ");
-      // Serial.print(timeTaken);
-      // Serial.println(" ms");
+// Actualiza la pantalla OLED
+void updateOLED() {
+  lastDisplayUpdate = millis();
+  display.clearDisplay();
 
-      lastLoRaSend = currentMillis;
-    }
-  
-  //#########################################################
+  bool loraConnected = isLoRaConnected();
 
-  //################## Recibir paquete LoRa #################
+  // Mostrar nivel de batería
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 8);
+  if (batteryLevel == -1) {
+    display.print("Bateria baja!");
+  } else {
+    display.print("Bateria: ");
+    display.print(batteryLevel);
+  }
+
+  // Mostrar estado de LoRa
+  display.setCursor(0, 16);
+  display.print("LoRa: ");
+  display.println(loraConnected ? "transmitiendo" : "...");
+
+  // Mostrar distancia recorrida
+  display.setCursor(0, 24);
+  display.print("distancia: ");
+  distancia = Distance();
+  display.print(distancia);
+
+  display.display();
+}
+
+// Verifica si es momento de actualizar el nivel de batería
+bool shouldUpdateBattery(unsigned long currentMillis) {
+  return currentMillis - lastBatteryUpdate >= 5000;
+}
+
+// Actualiza el nivel de batería
+void updateBatteryLevel() {
+  lastBatteryUpdate = millis();
+  batteryLevel = getBatteryLevel();
+}
+
+// Verifica si se puede enviar un paquete LoRa
+bool canSendLoRaPacket() {
+  return LoRa.beginPacket();
+}
+
+// Envía datos por LoRa
+void sendLoRaPacket() {
+  unsigned long startTime = millis();
+
+  LoRa.beginPacket();
+  LoRa.print(2);
+  LoRa.print(",");
+  LoRa.print(_LeftEncoderTicks);
+  LoRa.print(",");
+  LoRa.print(batteryLevel);
+  LoRa.print(",");
+  LoRa.print(distanciaRecorrida);
+  LoRa.endPacket();
+
+  // Calcular el tiempo de envío
+  unsigned long timeTaken = millis() - startTime;
+  timeBetweenPackets = timeTaken;
+  lastLoRaSend = millis();
+}
+
+// Maneja la recepción de datos LoRa
+void handleLoRaReceive() {
   int packetSize = LoRa.parsePacket();
   if (packetSize) {
     Serial.println("Paquete recibido desde el esclavo");
 
-    // Leer el paquete en el buffer
     int i = 0;
     while (LoRa.available() && i < sizeof(receivedData) - 1) {
       receivedData[i++] = LoRa.read();
     }
-    receivedData[i] = '\0';  // Finalizar cadena
+    receivedData[i] = '\0';
 
-    // Convertir la cadena a un flotante (float)
+    // Convertir y procesar el valor recibido
     beginReset = atof(receivedData);
     reset = true;
-        // Imprimir el valor flotante recibido en el Serial Monitor
+
     Serial.print("Valor recibido (beginReset): ");
     Serial.println(beginReset);
-    // Convertir el valor recibido a float
-
   }
 }
+
 
 int getBatteryLevel() {
   long sum = 0;
