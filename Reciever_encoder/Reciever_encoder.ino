@@ -247,4 +247,3 @@ void updateOLED() {
 
   display.display();
 }
-
