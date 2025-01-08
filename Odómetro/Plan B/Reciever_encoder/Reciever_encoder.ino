@@ -70,7 +70,7 @@ void setup() {
   */
 
   // Esperar hasta que llegue un dato por serial
-  while (odometro_radio.length() == 0) {
+  while (run_odometro_radio.length() == 0) {
       // Mostrar mensaje de espera
     display.setCursor(0, 23);
     display.setTextSize(1);
@@ -78,7 +78,7 @@ void setup() {
     display.print("esperando datos...");
     display.display(); // Mostrar mensaje en pantalla
     if (Serial.available() > 0) {
-      odometro_radio = Serial.readString(); // Leer el dato como cadena
+      run_odometro_radio = Serial.readString(); // Leer el dato como cadena
 
       display.clearDisplay(); // Limpiar pantalla solo cuando se reciben datos
       display.setCursor(0, 16);
@@ -92,14 +92,14 @@ void setup() {
   }
 
   // Procesar los datos recibidos
-  int comaIndex1 = odometro_radio.indexOf(',');
+  int comaIndex1 = run_odometro_radio.indexOf(',');
   if (comaIndex1 != -1) {
-    runCommand = odometro_radio.substring(0, comaIndex1);
+    runCommand = run_odometro_radio.substring(0, comaIndex1);
 
-    int comaIndex2 = odometro_radio.indexOf(',', comaIndex1 + 1);
+    int comaIndex2 = run_odometro_radio.indexOf(',', comaIndex1 + 1);
     if (comaIndex2 != -1) {
-      encoderType = odometro_radio.substring(comaIndex1 + 1, comaIndex2).toInt();
-      encoderRatio = odometro_radio.substring(comaIndex2 + 1).toFloat();
+      encoderType = run_odometro_radio.substring(comaIndex1 + 1, comaIndex2).toInt();
+      encoderRatio = run_odometro_radio.substring(comaIndex2 + 1).toFloat();
     }
   }
 
@@ -111,12 +111,12 @@ void setup() {
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.print("serial: ");
-  display.println(odometro_radio);
+  display.println(run_odometro_radio);
   display.setCursor(0, 23);
-  display.print("en/rad: ");
+  display.print("en/run: ");
   display.print(encoderType);
   display.print(",");
-  display.println(encoderRatio);
+  display.println(runCommand);
 
   display.display();
   delay(5000); // Mostrar los resultados durante 5 segundos
@@ -151,7 +151,6 @@ void loop() {
 
 // Manejo de datos del LoRa
 void handleLoRaData() {
-  char receivedData[64];  // Buffer para los datos recibidos
   int i = 0;
 
   while (LoRa.available() && i < sizeof(receivedData) - 1) {
@@ -179,13 +178,13 @@ void handleLoRaData() {
     ptr = strchr(ptr, ',');
     if (ptr) batteryLevel = atoi(++ptr);
 
-    Serial.print("ticks:");
     Serial.println(leftEncoderTicks);
   } else if (indexQuestion == 3){
     LoRa.beginPacket();
     LoRa.print(runCommand);
     LoRa.endPacket();
   }
+  receivedData[0] = '\0';
 }
 
 // Manejo de datos del Serial

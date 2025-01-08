@@ -13,7 +13,8 @@ begin_reset = 0
 envio_encoder_listo = False
 Ticks = 0
 ti = 0
-global puertoSerial_c
+ti_ant = 0
+puertoSerial_c = None
 
 current_file_path = os.path.abspath(__file__)
 current_folder = os.path.dirname(current_file_path)
@@ -55,7 +56,8 @@ def desconectar():
     check.config(state="normal")
     mensaje = "STOP"
     print(mensaje)
-    puertoSerial_c.write(mensaje.encode('utf-8'))
+    if puertoSerial_c != None:
+        puertoSerial_c.write(mensaje.encode('utf-8'))
 
 def reset():
     global Estado_reset, begin_reset, puertoSerial_c, Ticks
@@ -209,8 +211,12 @@ def conexion():
                 Tics = puertoSerial_c.readline()
                 if len(Tics) > 0:
                         Ti = "".join(filter(lambda x: x.isdigit(), str(Tics)))
-                        diferencial = ti_ant - int(Ti)
-                        ti_ant = int(Ti)
+                        if Ti == "":
+                            Ti_int = 0
+                        else:
+                            Ti_int = int(Ti)
+                        diferencial = ti_ant - Ti_int
+                        ti_ant = Ti_int
                         Ticks = Ticks - diferencial
 
                         if odometro_lista.get() == "Guia de cable":

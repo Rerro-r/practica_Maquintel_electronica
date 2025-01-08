@@ -167,7 +167,6 @@ void setup() {
 
 void loop() {
   unsigned long currentMillis = millis();
-  LoRa.receive();
   // Actualizar la pantalla OLED cada segundo
   if (shouldUpdateDisplay(currentMillis)) {
     updateOLED();
@@ -178,14 +177,14 @@ void loop() {
     updateBatteryLevel();
   }
 
-  if (stopSending == false) {
+//  if (stopSending == false) {
       // Enviar datos por LoRa
     if (canSendLoRaPacket()) {
       sendLoRaPacket();
     }
-  }
-
-  if (shouldUpdateCommand) {
+ // }
+}
+ /* if (shouldUpdateCommand) {
     askCommand();
   }
 
@@ -198,7 +197,7 @@ void loop() {
     }
   }
 }
-
+*/
 
 // Verifica si es momento de actualizar la pantalla
 bool shouldUpdateDisplay(unsigned long currentMillis) {
@@ -210,7 +209,11 @@ bool shouldUpdateCommand(unsigned long currentMillis) {
 }
 
 bool shouldStopSending(unsigned long currentMillis) {
-  return currentMillis - lastCommandAsk <= 1000;
+  Serial.print("lastCommandAsk: ");
+  Serial.println(lastCommandAsk);
+  Serial.print("currentMillis: ");
+  Serial.println(currentMillis);
+  return currentMillis - lastCommandAsk >= 1000;
 }
 
 // Actualiza la pantalla OLED
@@ -238,9 +241,8 @@ void updateOLED() {
 
   // Mostrar distancia recorrida
   display.setCursor(0, 24);
-  display.print("distancia: ");
-  distancia = Distance();
-  display.print(distancia);
+  display.print("Ticks: ");
+  display.print(_LeftEncoderTicks);
 
   display.display();
 }
@@ -257,6 +259,8 @@ void askCommand() {
     LoRa.endPacket();
     lastCommandAsk = millis();
     stopSending = true;
+    Serial.print("Stop Sending: ");
+    Serial.println(stopSending);
   }
 }
 
