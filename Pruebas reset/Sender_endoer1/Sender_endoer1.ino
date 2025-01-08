@@ -58,8 +58,11 @@ unsigned long timeBetweenPackets = 0;  // Tiempo entre el último y el actual en
 
 char receivedData[50];
 int encoderType = 1;
+float encoderRatio = 0.05;
 float beginReset = 0.0;
 float distanciaRecorrida = 0.0;
+float distancia = 0.0;
+bool reset = false;
 //#########################################################
 
 void setup() {
@@ -111,7 +114,8 @@ void loop() {
     display.setTextColor(SSD1306_WHITE);
     display.setCursor(0, 24);
     display.print("distancia: ");
-    display.print(Distance());
+    distancia = Distance();
+    display.print(distancia);
 
     // Mostrar mensaje de batería baja si el nivel está bajo
     display.setCursor(0, 8);
@@ -181,6 +185,7 @@ void loop() {
     // Imprimir el valor flotante recibido en el Serial Monitor
     Serial.print("Valor recibido (beginReset): ");
     Serial.println(beginReset);
+    reset = true;
   }
 }
 
@@ -218,11 +223,29 @@ void HandleLeftMotorInterruptA() {
 }
 
 float Distance() {
-    if (encoderType == 1) { // guía de cable
-        distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0372 * 3.1416) / 1024) * 1 * 100.0) / 100.0;
+    if (reset == false){
+      if (encoderType == 1) { // guía de cable
+          distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0372 * 3.1416) / 1024) * 1 * 100.0) / 100.0;
+      }
+      else if (encoderType == 2) { // carrete
+          distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0225 * 3.1416) / 1024) * 1.0216 * 100.0) / 100.0;
+      }
+      else if (encoderType == 3) { // personalizado
+          distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0225 * 3.1416) / 1024) * 1.0216 * 100.0) / 100.0;
+      }
+    } else {
+      distanciaRecorrida = beginReset;
+      reset = false;
+      if (encoderType == 1){
+        _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (0.0372 * 3.1416));
+      }
+      else if (encoderType == 2) {
+        _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (0.0225 * 3.1416));
+      }
+      else if (encoderType == 3){
+      _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (encoderRatio * 3.1416));
+      }
     }
-    else if (encoderType == 2) { // carrete
-        distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0225 * 3.1416) / 1024) * 1.0216 * 100.0) / 100.0;
-    }
+    
     return distanciaRecorrida;
 }
