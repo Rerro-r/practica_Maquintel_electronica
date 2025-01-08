@@ -9,8 +9,10 @@ from tkinter import ttk
 Estado = 0
 Estado_reset = 0
 envio_encoder = False  # Debe ser True cada vez que se desconecta de forma manual o accidental el receptor
-begin_reset = None
+begin_reset = 0
 envio_encoder_listo = False
+Ticks = 0
+ti = 0
 global puertoSerial_c
 
 current_file_path = os.path.abspath(__file__)
@@ -37,8 +39,9 @@ def actualizar_puertos():
     ventana.after(1000, actualizar_puertos)  # Repite cada 1000 ms (1 segundo)
 
 def desconectar():
-    global Estado, envio_encoder
+    global Estado, envio_encoder, puertoSerial_c
     Estado = 0
+    envio_encoder = True
     port_lista.config(state="normal")
     port_lista2.config(state="normal")
     odometro_lista.config(state="normal")
@@ -50,24 +53,30 @@ def desconectar():
     b_desconectar.config(state="disabled")
     mensaje_error.config(text="")
     check.config(state="normal")
+    mensaje = "STOP"
+    print(mensaje)
+    puertoSerial_c.write(mensaje.encode('utf-8'))
 
 def reset():
-    global Estado_reset, begin_reset, puertoSerial_c
+    global Estado_reset, begin_reset, puertoSerial_c, Ticks
     mensaje_error.config(text="")
     if Estado == 1:
         try:
             # Intentar convertir el valor ingresado a float
             begin_reset = float(input_reset.get())  # Si es válido, se guarda en begin_reset
             Estado_reset = 1  # Si la conversión es exitosa, se activa el reset
-            mensaje = f"{begin_reset}"
-            print(mensaje)
-            puertoSerial_c.write(mensaje.encode('utf-8'))
+            if odometro_lista.get() == "Guia de cable":
+                Ticks = round((begin_reset * 1024) / (0.0372 * 3.1416))
+            elif odometro_lista.get() == "Carrete":
+                Ticks = round((begin_reset * 1024) / (0.0225 * 3.1416))
+            elif odometro_lista.get() == "Personalizado":
+                Ticks = round((begin_reset * 1024) / (float(input_ratio.get()) * 3.1416))
         except ValueError:
             # Si ocurre un error al intentar convertir a float, muestra un mensaje de error
             mensaje_error.config(text="Error: El valor ingresado no es válido. Ingrese un número válido. Ejemplo: 0.05. Use punto para los decimales")
 
 def conexion():
-    global Estado, envio_encoder, Estado_reset, port_lista, selec_imu, puertoSerial_c, envio_encoder_listo
+    global Estado, envio_encoder, Estado_reset, port_lista, selec_imu, puertoSerial_c, envio_encoder_listo, Ticks, ti_ant
     mensaje_error.config(text="")
     Estado = 1
 
@@ -132,12 +141,18 @@ def conexion():
                 mensaje_error.config(text="Error: El valor ingresado no es válido. Ingrese un número válido. Ejemplo: 0.05. Use punto para los decimales")
 
 
-        if envio_encoder and not envio_encoder_listo: # solo envía encoder una vez. Si se quiere cambiar de encoder se debe cerrar la aplicación
-            mensaje = f"{encoder_type},{encoder_ratio}"
-            #print(mensaje)
-            puertoSerial_c.write(mensaje.encode('utf-8'))
-            envio_encoder = False
-            envio_encoder_listo = True
+        if envio_encoder:
+            if envio_encoder_listo: 
+                mensaje = f"RUN"
+                #print(mensaje)
+                puertoSerial_c.write(mensaje.encode('utf-8'))
+                envio_encoder = False
+            else:# solo envía encoder una vez. Si se quiere cambiar de encoder se debe cerrar la aplicación
+                mensaje = f"RUN,{encoder_type},{encoder_ratio}"
+                #print(mensaje)
+                puertoSerial_c.write(mensaje.encode('utf-8'))
+                envio_encoder = False
+                envio_encoder_listo = True
     
     else:
 
@@ -191,35 +206,51 @@ def conexion():
 
         if puertoSerial_c.in_waiting > 0:  # Verifica si hay datos disponibles
             try:
-                datos = puertoSerial_c.readline().decode('utf-8').strip()
-                if datos:
-                    partes = dict(item.split(":") for item in datos.split(","))
-                    Ti = partes.get("ticks", "0")
-                    Distancia = partes.get("dist", "0.00")
+                Tics = puertoSerial_c.readline()
+                if len(Tics) > 0:
+                        Ti = "".join(filter(lambda x: x.isdigit(), str(Tics)))
+                        diferencial = ti_ant - int(Ti)
+                        ti_ant = int(Ti)
+                        Ticks = Ticks - diferencial
+
+                        if odometro_lista.get() == "Guia de cable":
+                            Distancia = round((((Ticks * 0.0372 * 3.1416) / 1024) * 1), 2)
+                        elif odometro_lista.get() == "Carrete":
+                            Distancia = round((((Ticks * 0.0225 * 3.1416) / 1024) * 1.0216), 2)
+                        elif odometro_lista.get() == "Personalizado":
+                            Distancia = round((((Ticks * float(input_ratio.get()) * 3.1416) / 1024) * 1), 2)
+                        string_DIstancia=str(Distancia).split(".")
+
+                        if len(string_DIstancia[1])<2:
+                                string_DIstancia[1]= string_DIstancia[1]+"0"
+                        Distancia=string_DIstancia[0]+"."+string_DIstancia[1]
+
+                        # Ajuste de formato de distancia
+                        if float(Distancia) >= 0:
+                            if len(str(Distancia)) == 4:
+                                Distancia = "+000" + str(Distancia)
+                            if len(str(Distancia)) == 5:
+                                Distancia = "+00" + str(Distancia)
+                            if len(str(Distancia)) == 6:
+                                Distancia = "+0" + str(Distancia)
+                            if len(str(Distancia)) == 7:
+                                Distancia = "+" + str(Distancia)
+                        else:
+                            Distancia = str(Distancia)
+                            if len(str(Distancia)) == 5:
+                                Distancia = Distancia[:1] + "000" + Distancia[1:]
+                            if len(str(Distancia)) == 6:
+                                Distancia = Distancia[:1] + "00" + Distancia[1:]
+                            if len(str(Distancia)) == 7:
+                                Distancia = Distancia[:1] + "0" + Distancia[1:]   
+
             except UnicodeDecodeError:
                 print("Error de decodificación, ignorando los datos corruptos.")
                 continue 
         
         dis.set(Distancia)
         
-        # Ajuste de formato de distancia
-        if float(Distancia) >= 0:
-            if len(str(Distancia)) == 4:
-                Distancia = "+000" + str(Distancia)
-            if len(str(Distancia)) == 5:
-                Distancia = "+00" + str(Distancia)
-            if len(str(Distancia)) == 6:
-                Distancia = "+0" + str(Distancia)
-            if len(str(Distancia)) == 7:
-                Distancia = "+" + str(Distancia)
-        else:
-            Distancia = str(Distancia)
-            if len(str(Distancia)) == 5:
-                Distancia = Distancia[:1] + "000" + Distancia[1:]
-            if len(str(Distancia)) == 6:
-                Distancia = Distancia[:1] + "00" + Distancia[1:]
-            if len(str(Distancia)) == 7:
-                Distancia = Distancia[:1] + "0" + Distancia[1:]                 
+              
     
         formato = f"$PITCH{pitch},ROLL{roll},DIST{Distancia}\r\n"
         
@@ -227,7 +258,7 @@ def conexion():
         with open(nombre_archivo, 'a', newline='') as archivo:
             escritor = csv.writer(archivo, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
             hora_actual_unix = int(datetime.datetime.now().timestamp())
-            escritor.writerow([hora_actual_unix, Distancia, Ti, giro, ace, mag])
+            escritor.writerow([hora_actual_unix, Distancia, Ticks, giro, ace, mag])
         
         if selec_imu.get() == 1:
             puertoSerial_b.write(formato.encode('utf-8'))

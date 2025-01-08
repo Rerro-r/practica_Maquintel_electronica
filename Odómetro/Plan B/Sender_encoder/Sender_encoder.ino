@@ -52,6 +52,8 @@ const int numReadings = 10;
 //########################## Variables #############################
 unsigned long lastDisplayUpdate = 0;  // Tiempo del último update de pantalla
 unsigned long lastBatteryUpdate = 0;  // Tiempo del último cálculo de batería
+unsigned long lastCommandUpdate = 0;
+unsigned long lastCommandAsk = 0;
 int batteryLevel = 0;  // Almacenará el nivel de batería
 unsigned long lastLoRaSend = 0;  // Tiempo del último paquete LoRa enviado
 unsigned long timeBetweenPackets = 0;  // Tiempo entre el último y el actual envío de paquete
@@ -62,9 +64,11 @@ int encoderType = 0;
 float beginReset = 0.0;
 float distanciaRecorrida = 0.0;
 bool reset = false;
+bool stopSending = false;
 int ticksNecesarios = 0;
 float encoderRatio = 0.0; // medido en metros
 float distancia = 0.0;
+String runCommand = "";
 //#########################################################
 
 void setup() {
@@ -100,9 +104,7 @@ void setup() {
   // Enviar el paquete indefinidamente hasta recibir una respuesta
   while (packetSize == 0) {
     LoRa.beginPacket();
-    LoRa.print(1);             // Construir paquete
-    LoRa.print(",");
-    LoRa.print("tipo/diam");
+    LoRa.print(1);
     LoRa.endPacket(); 
     Serial.println("encoder pedido");
     LoRa.receive();
@@ -130,15 +132,16 @@ void setup() {
 
   // Procesar los datos recibidos
   char* ptr = receivedDataSetup;
-  encoderType = atoi(ptr);  // Obtener el tipo de encoder (convertir la primera parte a entero)
+  runCommand = String(ptr);  // Obtener el tipo de encoder (convertir la primera parte a entero)
   ptr = strchr(ptr, ',');   // Buscar el delimitador '/'
-  if (ptr) {
-    ptr++;  // Avanzar el puntero después del '/'
-    encoderRatio = atof(ptr);  // Convertir la parte después de '/' a flotante
-  }
+  if (ptr) encoderType = atoi(++ptr);  // Convertir la parte después de '/' a flotante
+  
+  ptr = strchr(ptr, ',');
+  if (ptr) encoderRatio = atof(++ptr);
 
   receivedDataSetup[0] = '\0';  // Esto vacía la cadena
   // Imprimir los valores procesados
+  Serial.println("Comando recibido: " + runCommand);
   Serial.println("Tipo de encoder recibido: " + String(encoderType));
   Serial.println("Diámetro del encoder recibido: " + String(encoderRatio));
 
@@ -175,16 +178,24 @@ void loop() {
     updateBatteryLevel();
   }
 
-  // Enviar datos por LoRa
-  if (canSendLoRaPacket()) {
-    sendLoRaPacket();
+  if (stopSending == false) {
+      // Enviar datos por LoRa
+    if (canSendLoRaPacket()) {
+      sendLoRaPacket();
+    }
   }
 
-  if (LoRa.parsePacket()) {
+  if (shouldUpdateCommand) {
+    askCommand();
+  }
+
+  if (shouldStopSending) { // falta opción de cuando no le llega nada
+    if (LoRa.parsePacket()) {
       Serial.println("Paquete LoRa detectado.");
-      handleLoRaReceive();
-  } else {
-      Serial.println("No se recibió ningún paquete.");
+      readCommand();
+    } else {
+        Serial.println("No se recibió ningún paquete.");
+    }
   }
 }
 
@@ -194,6 +205,13 @@ bool shouldUpdateDisplay(unsigned long currentMillis) {
   return currentMillis - lastDisplayUpdate >= 1000;
 }
 
+bool shouldUpdateCommand(unsigned long currentMillis) {
+  return currentMillis - lastCommandUpdate >= 1800000;
+}
+
+bool shouldStopSending(unsigned long currentMillis) {
+  return currentMillis - lastCommandAsk <= 1000;
+}
 
 // Actualiza la pantalla OLED
 void updateOLED() {
@@ -232,6 +250,17 @@ bool shouldUpdateBattery(unsigned long currentMillis) {
   return currentMillis - lastBatteryUpdate >= 5000;
 }
 
+void askCommand() {
+  if (canSendLoRaPacket()) {
+    LoRa.beginPacket();
+    LoRa.print(3);
+    LoRa.endPacket();
+    lastCommandAsk = millis();
+    stopSending = true;
+  }
+}
+
+
 // Actualiza el nivel de batería
 void updateBatteryLevel() {
   lastBatteryUpdate = millis();
@@ -253,8 +282,6 @@ void sendLoRaPacket() {
   LoRa.print(_LeftEncoderTicks);
   LoRa.print(",");
   LoRa.print(batteryLevel);
-  LoRa.print(",");
-  LoRa.print(distanciaRecorrida);
   LoRa.endPacket();
 
   // Calcular el tiempo de envío
@@ -264,8 +291,8 @@ void sendLoRaPacket() {
 }
 
 // Maneja la recepción de datos LoRa
-void handleLoRaReceive() {
-  Serial.println("Paquete recibido desde el esclavo");
+void readCommand() {
+  Serial.println("Comando de respaldo recibido!");
 
   int i = 0;
   while (LoRa.available() && i < sizeof(receivedData) - 1) {
@@ -274,11 +301,10 @@ void handleLoRaReceive() {
   receivedData[i] = '\0';  // Terminar la cadena
 
   // Convertir y procesar el valor recibido
-  beginReset = atof(receivedData);
-  reset = true;
-
-  Serial.print("Valor recibido (beginReset): ");
-  Serial.println(beginReset);
+  runCommand = String(receivedData);
+  Serial.print("Run Command: ");
+  Serial.println(runCommand);
+  stopSending = false;
 }
 
 
@@ -313,34 +339,4 @@ void HandleLeftMotorInterruptA() {
   #else
     _LeftEncoderTicks -= _LeftEncoderBSet ? -1 : +1;
   #endif
-}
-
-
-
-float Distance() {
-    if (reset == false){
-      if (encoderType == 1) { // guía de cable
-          distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0372 * 3.1416) / 1024) * 1 * 100.0) / 100.0;
-      }
-      else if (encoderType == 2) { // carrete
-          distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0225 * 3.1416) / 1024) * 1.0216 * 100.0) / 100.0;
-      }
-      else if (encoderType == 3) { // personalizado
-          distanciaRecorrida = round(((int(_LeftEncoderTicks) * 0.0225 * 3.1416) / 1024) * 1.0216 * 100.0) / 100.0;
-      }
-    } else {
-      distanciaRecorrida = beginReset;
-      reset = false;
-      if (encoderType == 1){
-        _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (0.0372 * 3.1416));
-      }
-      else if (encoderType == 2) {
-        _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (0.0225 * 3.1416));
-      }
-      else if (encoderType == 3){
-      _LeftEncoderTicks = round((distanciaRecorrida * 1024) / (encoderRatio * 3.1416));
-      }
-    }
-    
-    return distanciaRecorrida;
 }

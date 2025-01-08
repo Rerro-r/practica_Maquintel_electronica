@@ -23,7 +23,7 @@ unsigned long previousMillis = 0;  // Tiempo entre paquetes
 unsigned long lastOledUpdate = 0;  // Control de actualización OLED
 unsigned long lastPrintMillis = 0;  // Control de impresión en Serial Monitor
 
-char receivedData[256];  // Buffer para datos del paquete
+char receivedData[500] = {0};  // Buffer para datos del paquete
 int batteryLevel = 0;
 long leftEncoderTicks = 0;
 float distanciaRecorrida = 0.0;
@@ -31,6 +31,7 @@ int indexQuestion = 0;
 float encoderRatio = 0.0;
 int encoderType = 0;
 float beginReset = 0.0;
+String runCommand = "";
 
 void setup() {
   Serial.begin(115200);
@@ -60,7 +61,7 @@ void setup() {
   display.display();
 
   Serial.println("Esperando datos por Serial...");
-  String odometro_radio = ""; // Variable para almacenar el dato recibido
+  String run_odometro_radio = ""; // Variable para almacenar el dato recibido
 
  /* // Mostrar mensaje de espera
   display.setCursor(0, 23);
@@ -91,11 +92,17 @@ void setup() {
   }
 
   // Procesar los datos recibidos
-  int comaIndex = odometro_radio.indexOf(',');
-  if (comaIndex != -1) {
-    encoderType = odometro_radio.substring(0, comaIndex).toInt();
-    encoderRatio = odometro_radio.substring(comaIndex + 1).toFloat();
+  int comaIndex1 = odometro_radio.indexOf(',');
+  if (comaIndex1 != -1) {
+    runCommand = odometro_radio.substring(0, comaIndex1);
+
+    int comaIndex2 = odometro_radio.indexOf(',', comaIndex1 + 1);
+    if (comaIndex2 != -1) {
+      encoderType = odometro_radio.substring(comaIndex1 + 1, comaIndex2).toInt();
+      encoderRatio = odometro_radio.substring(comaIndex2 + 1).toFloat();
+    }
   }
+
 
 
   // Mostrar los resultados en el display
@@ -158,6 +165,8 @@ void handleLoRaData() {
   if (indexQuestion == 1) {
     // Enviar configuración del encoder por LoRa
     LoRa.beginPacket();
+    LoRa.print(runCommand);
+    LoRa.print(",");
     LoRa.print(encoderType);
     LoRa.print(",");
     LoRa.print(encoderRatio);
@@ -170,13 +179,12 @@ void handleLoRaData() {
     ptr = strchr(ptr, ',');
     if (ptr) batteryLevel = atoi(++ptr);
 
-    ptr = strchr(ptr, ',');
-    if (ptr) distanciaRecorrida = atof(++ptr);
-
     Serial.print("ticks:");
-    Serial.print(leftEncoderTicks);
-    Serial.print(",dist:");
-    Serial.println(distanciaRecorrida);
+    Serial.println(leftEncoderTicks);
+  } else if (indexQuestion == 3){
+    LoRa.beginPacket();
+    LoRa.print(runCommand);
+    LoRa.endPacket();
   }
 }
 
@@ -185,34 +193,14 @@ void handleSerialData() {
   String data = Serial.readString();
 
   if (data.length() > 0) {
-    beginReset = data.toFloat();
-
-    // Enviar el dato recibido al LoRa
-    LoRa.beginPacket();
-    LoRa.print(beginReset);
-    int result = LoRa.endPacket(); // Devuelve 0 o 1
-
-    // Determinar el mensaje del resultado
-    String envioStatus;
-    if (result == 1) {
-      envioStatus = "Exitoso";
-    } else {
-      envioStatus = "Error";
-    }
-
+    runCommand = data;
     // Mostrar el dato enviado y el estado en el display
     display.clearDisplay();
     display.setCursor(0, 0);
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
 
-    display.print("Dato enviado:");
-    display.setCursor(0, 10);
-    display.println(beginReset);
-
-    display.setCursor(0, 20);
-    display.print("Estado envio:");
-    display.println(envioStatus);
+    display.println(runCommand);
 
     display.display();
   }
@@ -236,8 +224,8 @@ void updateOLED() {
   }
 
   display.setCursor(0, 16);
-  display.print("Distancia: ");
-  display.println(distanciaRecorrida);
+  display.print("Ticks: ");
+  display.println(leftEncoderTicks);
 
   display.setCursor(0, 23);
   display.print("Encoder: ");
