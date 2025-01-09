@@ -70,7 +70,7 @@ def reset():
             if odometro_lista.get() == "Guia de cable":
                 Ticks = round((begin_reset * 1024) / (0.0372 * 3.1416))
             elif odometro_lista.get() == "Carrete":
-                Ticks = round((begin_reset * 1024) / (0.0225 * 3.1416))
+                Ticks = round((begin_reset * 1024) / (0.0225 * 3.1416 * 1.0216))
             elif odometro_lista.get() == "Personalizado":
                 Ticks = round((begin_reset * 1024) / (float(input_ratio.get()) * 3.1416))
         except ValueError:
@@ -98,7 +98,7 @@ def conexion():
 
     with open(nombre_archivo, "w", newline="") as file:
         writer = csv.writer(file, delimiter=";", quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
-        writer.writerow(["Hora UNIX", "Distancia", "Ticks", "GIROSCOPIO", "ACELEROMETRO", "MAGNETROMETRO"])
+        writer.writerow(["Hora Unix","Hora Local",  "Distancia", "Ticks", "GIROSCOPIO", "ACELEROMETRO", "MAGNETROMETRO"])
 
     if port_lista.get() and odometro_lista.get():
         if selec_imu.get():
@@ -209,8 +209,10 @@ def conexion():
         if puertoSerial_c.in_waiting > 0:  # Verifica si hay datos disponibles
             try:
                 Tics = puertoSerial_c.readline()
+                print(f"Tics desde serial: {Tics}")
                 if len(Tics) > 0:
-                        Ti = "".join(filter(lambda x: x.isdigit(), str(Tics)))
+                        Ti = "".join(filter(lambda x: x.isdigit() or x in ['-', '+'], str(Tics)))
+                        print(f"Ti: {Ti}")
                         if Ti == "":
                             Ti_int = 0
                         else:
@@ -225,11 +227,14 @@ def conexion():
                             Distancia = round((((Ticks * 0.0225 * 3.1416) / 1024) * 1.0216), 2)
                         elif odometro_lista.get() == "Personalizado":
                             Distancia = round((((Ticks * float(input_ratio.get()) * 3.1416) / 1024) * 1), 2)
+                        print(f"post cálculo float: {Distancia}")
                         string_DIstancia=str(Distancia).split(".")
+                        print(f"post cálculo: {string_DIstancia}")
 
                         if len(string_DIstancia[1])<2:
                                 string_DIstancia[1]= string_DIstancia[1]+"0"
                         Distancia=string_DIstancia[0]+"."+string_DIstancia[1]
+                        print(f"post ajuste por largo: {Distancia}")
 
                         # Ajuste de formato de distancia
                         if float(Distancia) >= 0:
@@ -242,13 +247,16 @@ def conexion():
                             if len(str(Distancia)) == 7:
                                 Distancia = "+" + str(Distancia)
                         else:
-                            Distancia = str(Distancia)
+                            if len(str(Distancia)) == 4:
+                                Distancia = "-0000" + str(Distancia[1:])
                             if len(str(Distancia)) == 5:
-                                Distancia = Distancia[:1] + "000" + Distancia[1:]
+                                Distancia = "-000" + str(Distancia[1:])
                             if len(str(Distancia)) == 6:
-                                Distancia = Distancia[:1] + "00" + Distancia[1:]
+                                Distancia = "-00" + str(Distancia[1:])
                             if len(str(Distancia)) == 7:
-                                Distancia = Distancia[:1] + "0" + Distancia[1:]   
+                                Distancia = "-0" + str(Distancia[1:])
+                        
+                        print(f"Distancia final: {Distancia}")
 
             except UnicodeDecodeError:
                 print("Error de decodificación, ignorando los datos corruptos.")
@@ -263,8 +271,9 @@ def conexion():
         # Guardar datos en archivo CSV
         with open(nombre_archivo, 'a', newline='') as archivo:
             escritor = csv.writer(archivo, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
-            hora_actual_unix = int(datetime.datetime.now().timestamp())
-            escritor.writerow([hora_actual_unix, Distancia, Ticks, giro, ace, mag])
+            hora_actual_unix = datetime.datetime.now().timestamp()
+            hora_actual_local = datetime.datetime.now()
+            escritor.writerow([hora_actual_unix, hora_actual_local, Distancia, Ticks, giro, ace, mag])
         
         if selec_imu.get() == 1:
             puertoSerial_b.write(formato.encode('utf-8'))
